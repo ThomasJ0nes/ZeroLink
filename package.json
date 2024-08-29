@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@web3auth/base": "^8.12.4",
+    "@web3auth/ethereum-provider": "^8.12.4",
+    "@web3auth/modal": "^8.12.6",
+    "ethers": "^6.13.2",
+    "next": "^14.2.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
