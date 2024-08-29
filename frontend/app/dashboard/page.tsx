@@ -140,172 +140,163 @@ export default function Component() {
   };
 
   return (
-    <>
-      <Navbar />
-      <TooltipProvider>
-        <div className="flex h-screen bg-gray-100">
-          {/* Icon Sidebar */}
-          <aside
-            className={`bg-white shadow-md transition-all duration-300 ease-in-out`}
-          >
-            <div className="flex flex-col h-full">
-              <div className="p-4"></div>
-              <nav className="flex-1 px-2 py-4 space-y-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={
-                        activePage === "dashboard" ? "secondary" : "ghost"
-                      }
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("dashboard")}
-                    >
-                      <Home className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>Dashboard</p>
-                  </TooltipContent>
-                </Tooltip>
+    <TooltipProvider>
+      <div className="flex h-screen bg-gray-100">
+        {/* Icon Sidebar */}
+        <aside
+          className={`bg-white shadow-md transition-all duration-300 ease-in-out`}
+        >
+          <div className="flex flex-col h-full">
+            <div className="p-4"></div>
+            <nav className="flex-1 px-2 py-4 space-y-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activePage === "dashboard" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("dashboard")}
+                  >
+                    <Home className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Dashboard</p>
+                </TooltipContent>
+              </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={
-                        activePage === "subscriptions" ? "secondary" : "ghost"
-                      }
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("subscriptions")}
-                    >
-                      <Clock className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>Subscriptions</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={activePage === "history" ? "secondary" : "ghost"}
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("history")}
-                    >
-                      <History className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>History</p>
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={
-                        activePage === "settings" ? "secondary" : "ghost"
-                      }
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("settings")}
-                    >
-                      <Settings className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>Settings</p>
-                  </TooltipContent>
-                </Tooltip>
-              </nav>
-            </div>
-          </aside>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={
+                      activePage === "subscriptions" ? "secondary" : "ghost"
+                    }
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("subscriptions")}
+                  >
+                    <Clock className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Subscriptions</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activePage === "history" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("history")}
+                  >
+                    <History className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>History</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={activePage === "settings" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("settings")}
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Settings</p>
+                </TooltipContent>
+              </Tooltip>
+            </nav>
+          </div>
+        </aside>
 
-          {/* Main Content */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <header className=" shadow-sm">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  ZeroLink Dashboard
-                </h1>
-                <div className="flex items-center space-x-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline">
-                        {activeChain}
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem
-                        onSelect={() => setActiveChain("Sepolia")}
-                      >
-                        Sepolia
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() => setActiveChain("Optimism")}
-                      >
-                        Optimism
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <header className=" shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-900">
+                ZeroLink Dashboard
+              </h1>
+              <div className="flex items-center space-x-4">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      {activeChain}
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem
+                      onSelect={() => setActiveChain("Sepolia")}
+                    >
+                      Sepolia
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setActiveChain("Optimism")}
+                    >
+                      Optimism
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowNotifications(!showNotifications)}
+                    >
+                      <Bell className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Notifications</p>
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenu>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowNotifications(!showNotifications)}
-                      >
-                        <Bell className="h-5 w-5" />
-                      </Button>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <User className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Notifications</p>
+                      <p>User Menu</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DropdownMenu>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <User className="h-5 w-5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>User Menu</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent>
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>
-                        <User className="mr-2 h-4 w-4" />
-                        Profile
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Log out
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            </header>
+            </div>
+          </header>
 
-            <main className="flex-1 overflow-x-hidden overflow-y-auto ">
-              <div className="container mx-auto px-2 py-8">
-                {renderContent()}
-              </div>
-            </main>
-          </div>
+          <main className="flex-1 overflow-x-hidden overflow-y-auto ">
+            <div className="container mx-auto px-2 py-8">{renderContent()}</div>
+          </main>
         </div>
-      </TooltipProvider>
-    </>
+      </div>
+    </TooltipProvider>
   );
 }
