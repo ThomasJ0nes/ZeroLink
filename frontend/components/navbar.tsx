@@ -62,7 +62,7 @@ export default function Navbar() {
                 className="flex items-center"
                 onClick={() => setIsOpen(false)}
               >
-                <span className="font-bold">ACME</span>
+                <span className="font-bold">ZeroLink</span>
               </Link>
               <nav className="flex flex-col space-y-4 mt-4">
                 <NavLinks />
