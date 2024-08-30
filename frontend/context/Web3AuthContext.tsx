@@ -31,7 +31,7 @@ interface IWeb3AuthContext {
     login: () => Promise<void>;
     logout: () => Promise<void>;
     getUserInfo: () => Promise<void>;
-    getBalance: () => Promise<void>;
+    getBalance: () => Promise<string | null>;
 }
 
 const Web3AuthContext = createContext<IWeb3AuthContext | null>(null);
@@ -114,18 +114,22 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
     };
 
-    const getBalance = async () => {
+    const getBalance = async (): Promise<string | null> => {
         if (provider) {
             try {
                 const ethersProvider = new ethers.BrowserProvider(provider as any);
                 const signer = await ethersProvider.getSigner();
                 const balance = await ethersProvider.getBalance(signer.getAddress());
-                console.log("Balance:", ethers.formatEther(balance));
+                const formattedBalance = ethers.formatEther(balance);
+                console.log("Balance:", formattedBalance);
+                return formattedBalance;  // Return the formatted balance
             } catch (error) {
                 console.error("Error getting balance:", error);
+                return null;
             }
         } else {
             console.log("Provider not initialized yet");
+            return null;
         }
     };
 
