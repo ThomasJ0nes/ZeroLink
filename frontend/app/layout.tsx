@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Web3AuthProvider } from "@/context/Web3AuthContext";
 import React from "react";
+import Navbar from "@/components/navbar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -12,17 +13,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({
-                                     children,
-                                   }: {
+  children,
+}: {
   children: React.ReactNode;
 }) {
   return (
-      <html lang="en">
+    <html lang="en">
       <body className={inter.className}>
-      <Web3AuthProvider>
-        {children}
-      </Web3AuthProvider>
+        <Web3AuthProvider>
+          <Navbar />
+          {children}
+        </Web3AuthProvider>
       </body>
-      </html>
+    </html>
   );
 }

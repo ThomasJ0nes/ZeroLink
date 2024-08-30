@@ -4,7 +4,6 @@ import Link from "next/link";
 export default function Home() {
   return (
     <>
-      <Navbar />
       <div className="flex flex-col min-h-screen bg-white">
         <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
           <div className="container px-4 md:px-6">

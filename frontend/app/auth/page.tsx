@@ -21,7 +21,7 @@ export default function AuthPage() {
                 </button>
             ) : (
                 <>
-                    <p className="mt-4">Welcome, {user.name}</p>
+                    <p className="mt-4">Welcome, {user?.name}</p>
                     <button onClick={logout} className="px-4 py-2 bg-red-500 text-white rounded mt-2">
                         Log Out
                     </button>

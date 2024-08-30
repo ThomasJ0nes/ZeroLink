@@ -104,9 +104,10 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             try {
                 await web3auth.logout();
                 setProvider(null);
+                setUser(null);
                 setUserAddress(null);
                 setLoggedIn(false);
-                console.log("Logged out");
+                console.log("Logged out successfully");
             } catch (error) {
                 console.error("Failed to logout with Web3Auth", error);
             }

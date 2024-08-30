@@ -1,4 +1,12 @@
 {
+  "name": "zerolink",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
     "@web3auth/base": "^8.12.4",
     "@web3auth/ethereum-provider": "^8.12.4",
