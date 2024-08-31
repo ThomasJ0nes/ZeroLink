@@ -20,12 +20,13 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     uint32 public constant BASE_SEPOLIA_EID = 40245;
+
     /// The `_options` variable is typically provided as an argument to both the `_quote` and `_lzSend` functions.
     /// In this example, we demonstrate how to generate the `bytes` value for `_options` and pass it manually.
     /// The `OptionsBuilder` is used to create new options and add an executor option for `LzReceive` with specified parameters.
     /// An off-chain equivalent can be found under 'Message Execution Options' in the LayerZero V2 Documentation.
     bytes _options =
-        OptionsBuilder.newOptions().addExecutorLzReceiveOption(50000, 0);
+        OptionsBuilder.newOptions().addExecutorLzReceiveOption(3000000, 0);
 
     uint256 public subscriptionCounter;
     mapping(uint256 => Subscription) public subscriptions;

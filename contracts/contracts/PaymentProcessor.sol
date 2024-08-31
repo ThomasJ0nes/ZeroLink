@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {OAppSender, MessagingFee} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppSender.sol";
+import {OAppSender, MessagingParams, MessagingFee} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppSender.sol";
 import {OAppReceiver, Origin} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppReceiver.sol";
 import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
 import {OAppCore} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppCore.sol";
@@ -18,16 +18,17 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
     using SafeERC20 for IERC20;
 
     uint32 public constant SEPOLIA_EID = 40161;
+
     /// The `_options` variable is typically provided as an argument to both the `_quote` and `_lzSend` functions.
     /// In this example, we demonstrate how to generate the `bytes` value for `_options` and pass it manually.
     /// The `OptionsBuilder` is used to create new options and add an executor option for `LzReceive` with specified parameters.
     /// An off-chain equivalent can be found under 'Message Execution Options' in the LayerZero V2 Documentation.
     bytes _options =
-        OptionsBuilder.newOptions().addExecutorLzReceiveOption(50000, 0);
+        OptionsBuilder.newOptions().addExecutorLzReceiveOption(3000000, 0);
 
     uint64 public constant SEPOLIA_CHAIN_SELECTOR = 16015286601757825753;
     address public constant USDC_TOKEN =
-        0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        0x036CbD53842c5426634e7929541eC2318f3dCF7e;
     IRouterClient public s_router;
     IERC20 public s_linkToken;
 
@@ -83,42 +84,6 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
         IERC20(_token).safeTransfer(_beneficiary, amount);
     }
 
-    /// @notice Construct a CCIP message.
-    /// @dev This function will create an EVM2AnyMessage struct with all the necessary information for tokens transfer.
-    /// @param _receiver The address of the receiver.
-    /// @param _token The token to be transferred.
-    /// @param _amount The amount of the token to be transferred.
-    /// @param _feeTokenAddress The address of the token used for fees. Set address(0) for native gas.
-    /// @return Client.EVM2AnyMessage Returns an EVM2AnyMessage struct which contains information for sending a CCIP message.
-    function _buildCCIPMessage(
-        address _receiver,
-        address _token,
-        uint256 _amount,
-        address _feeTokenAddress
-    ) private pure returns (Client.EVM2AnyMessage memory) {
-        // Set the token amounts
-        Client.EVMTokenAmount[]
-            memory tokenAmounts = new Client.EVMTokenAmount[](1);
-        tokenAmounts[0] = Client.EVMTokenAmount({
-            token: _token,
-            amount: _amount
-        });
-
-        // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
-        return
-            Client.EVM2AnyMessage({
-                receiver: abi.encode(_receiver), // ABI-encoded receiver address
-                data: "", // No data
-                tokenAmounts: tokenAmounts, // The amount and type of token being transferred
-                extraArgs: Client._argsToBytes(
-                    // Additional arguments, setting gas limit to 0 as we are not sending any data
-                    Client.EVMExtraArgsV1({gasLimit: 0})
-                ),
-                // Set the feeToken to a feeTokenAddress, indicating specific asset will be used for fees
-                feeToken: _feeTokenAddress
-            });
-    }
-
     /**
      * @dev Called when the Executor executes EndpointV2.lzReceive. It overrides the equivalent function in the parent OApp contract.
      * Protocol messages are defined as packets, comprised of the following parameters.
@@ -151,7 +116,6 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
             _origin.nonce
         );
 
-        // _transferTokensPayLINK(serviceProvider, amount);
         _transferTokensPayNative(serviceProvider, amount);
 
         // Prepare the payload and send it to the target chain
@@ -167,63 +131,18 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
                 address(this).balance,
                 messagingFee.nativeFee
             );
-        _lzSend(
-            SEPOLIA_EID,
-            encodedMessage,
-            _options,
-            // Fee in native gas and ZRO token.
-            MessagingFee(address(this).balance, 0),
-            // Refund address in case of failed source message.
-            payable(address(this))
+        endpoint.send{value: messagingFee.nativeFee}(
+            MessagingParams(
+                SEPOLIA_EID,
+                _getPeerOrRevert(SEPOLIA_EID),
+                encodedMessage,
+                _options,
+                false
+            ),
+            address(this)
         );
 
         emit MessageSent(subscriptionId, SEPOLIA_EID);
-    }
-
-    function _transferTokensPayLINK(
-        address serviceProvider,
-        uint256 amount
-    ) internal validateReceiver(serviceProvider) returns (bytes32 messageId) {
-        // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
-        //  address(linkToken) means fees are paid in LINK
-        Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(
-            serviceProvider,
-            USDC_TOKEN,
-            amount,
-            address(s_linkToken)
-        );
-
-        // Get the fee required to send the message
-        uint256 fees = s_router.getFee(SEPOLIA_CHAIN_SELECTOR, evm2AnyMessage);
-
-        if (fees > s_linkToken.balanceOf(address(this)))
-            revert PaymentProcessor_NotEnoughBalanceToTransferTokens(
-                s_linkToken.balanceOf(address(this)),
-                fees
-            );
-
-        // approve the Router to transfer LINK tokens on contract's behalf. It will spend the fees in LINK
-        s_linkToken.approve(address(s_router), fees);
-
-        // approve the Router to spend tokens on contract's behalf. It will spend the amount of the given token
-        IERC20(USDC_TOKEN).approve(address(s_router), amount);
-
-        // Send the message through the router and store the returned message ID
-        messageId = s_router.ccipSend(SEPOLIA_CHAIN_SELECTOR, evm2AnyMessage);
-
-        // Emit an event with message details
-        emit TokensTransferred(
-            messageId,
-            SEPOLIA_CHAIN_SELECTOR,
-            serviceProvider,
-            USDC_TOKEN,
-            amount,
-            address(s_linkToken),
-            fees
-        );
-
-        // Return the message ID
-        return messageId;
     }
 
     function _transferTokensPayNative(
@@ -270,6 +189,42 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
 
         // Return the message ID
         return messageId;
+    }
+
+    /// @notice Construct a CCIP message.
+    /// @dev This function will create an EVM2AnyMessage struct with all the necessary information for tokens transfer.
+    /// @param _receiver The address of the receiver.
+    /// @param _token The token to be transferred.
+    /// @param _amount The amount of the token to be transferred.
+    /// @param _feeTokenAddress The address of the token used for fees. Set address(0) for native gas.
+    /// @return Client.EVM2AnyMessage Returns an EVM2AnyMessage struct which contains information for sending a CCIP message.
+    function _buildCCIPMessage(
+        address _receiver,
+        address _token,
+        uint256 _amount,
+        address _feeTokenAddress
+    ) private pure returns (Client.EVM2AnyMessage memory) {
+        // Set the token amounts
+        Client.EVMTokenAmount[]
+            memory tokenAmounts = new Client.EVMTokenAmount[](1);
+        tokenAmounts[0] = Client.EVMTokenAmount({
+            token: _token,
+            amount: _amount
+        });
+
+        // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
+        return
+            Client.EVM2AnyMessage({
+                receiver: abi.encode(_receiver), // ABI-encoded receiver address
+                data: "", // No data
+                tokenAmounts: tokenAmounts, // The amount and type of token being transferred
+                extraArgs: Client._argsToBytes(
+                    // Additional arguments, setting gas limit to 0 as we are not sending any data
+                    Client.EVMExtraArgsV1({gasLimit: 0})
+                ),
+                // Set the feeToken to a feeTokenAddress, indicating specific asset will be used for fees
+                feeToken: _feeTokenAddress
+            });
     }
 
     // The following functions are overrides required by Solidity.
