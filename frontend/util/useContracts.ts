@@ -5,7 +5,7 @@ import SubscriptionManagerABI from "../../contracts/ignition/deployments/chain-1
 import PaymentProcessorABI from "../../contracts/ignition/deployments/chain-84532/artifacts/PaymentProcessorModule#PaymentProcessor.json";
 
 // contract addresses
-const SUBSCRIPTION_MANAGER_ADDRESS = '0x6AA2F7F0Ea2aF5f3CF25E2026D054dfdF32aAd8a';
+const SUBSCRIPTION_MANAGER_ADDRESS = '0x57158c971c8C146F3ed93F695a3c3b0B95052c55';
 const PAYMENT_PROCESSOR_ADDRESS = '0xB4b29499D53839Fd601725A6B4c2abbdF05A7133';
 
 export const useContracts = () => {
