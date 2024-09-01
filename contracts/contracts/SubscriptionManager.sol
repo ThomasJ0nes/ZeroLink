@@ -19,6 +19,8 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         uint256 nextPaymentDate; // The timestamp for the next payment
     }
 
+    event SubscriptionCanceled(uint256 indexed subscriptionId, address indexed user);
+
     uint32 public constant BASE_SEPOLIA_EID = 40245;
 
     /// The `_options` variable is typically provided as an argument to both the `_quote` and `_lzSend` functions.
@@ -123,6 +125,36 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         address user
     ) public view returns (uint256[] memory) {
         return userSubscriptions[user];
+    }
+
+    function cancelSubscription(uint256 subscriptionId) public {
+        Subscription storage subscription = subscriptions[subscriptionId];
+        if (subscription.user != msg.sender) {
+            revert SubscriptionManager_OnlySubcriber();
+        }
+
+        // Remove the subscription from the user's subscriptions array
+        uint256[] storage userSubs = userSubscriptions[msg.sender];
+        for (uint256 i = 0; i < userSubs.length; i++) {
+            if (userSubs[i] == subscriptionId) {
+                userSubs[i] = userSubs[userSubs.length - 1];
+                userSubs.pop();
+                break;
+            }
+        }
+
+        delete subscriptions[subscriptionId];
+
+        emit SubscriptionCanceled(subscriptionId, msg.sender);
+    }
+
+    function getAllUserSubscriptions() public view returns (Subscription[] memory) {
+        uint256[] memory userSubIds = userSubscriptions[msg.sender];
+        Subscription[] memory userSubs = new Subscription[](userSubIds.length);
+        for (uint256 i = 0; i < userSubIds.length; i++) {
+            userSubs[i] = subscriptions[userSubIds[i]];
+        }
+        return userSubs;
     }
 
     /**
