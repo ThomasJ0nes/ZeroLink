@@ -5,6 +5,7 @@ import { OAppReceiver, Origin } from "@layerzerolabs/oapp-evm/contracts/oapp/OAp
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract SubscriptionValidator is OAppReceiver, Ownable {
+    
     struct Subscription {
         address userAddress;
         uint256 amount;
