@@ -59,7 +59,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             serviceProvider,
             amount,
             interval,
-            block.timestamp + interval
+            block.timestamp
         );
 
         subscriptions[subscriptionId] = subscription;
@@ -67,17 +67,17 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         emit SubscriptionCreated(
             subscriptionId,
-            msg.sender,
-            serviceProvider,
-            amount,
-            interval,
-            block.timestamp + interval
+            subscription.user,
+            subscription.serviceProvider,
+            subscription.amount,
+            subscription.interval,
+            subscription.nextPaymentDate
         );
 
         return subscriptionId;
     }
 
-    function triggerPayment(uint256 subscriptionId) public payable {
+    function makePayment(uint256 subscriptionId) public payable {
         Subscription memory subscription = subscriptions[subscriptionId];
         if (subscription.user != msg.sender) {
             revert SubscriptionManager_OnlySubcriber();
@@ -178,9 +178,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         // Decode the payload to get the message
         uint256 subscriptionId = abi.decode(message, (uint256));
 
-        Subscription memory subscription = subscriptions[subscriptionId];
-
-        // Update the next payment date for the subscription
+        Subscription storage subscription = subscriptions[subscriptionId];
         subscription.nextPaymentDate += subscription.interval;
 
         // Emit the event with the decoded message and sender's EID
