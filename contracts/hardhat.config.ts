@@ -47,11 +47,11 @@ const config: HardhatUserConfig = {
       accounts: [deployerPrivateKey],
     },
     optimism: {
-      url: `https://opt-mainnet.g.alchemy.com/v2/${providerApiKey}`,
+      url: `https://opt-sepolia.g.alchemy.com/v2/bOt7fsY-5BpYiQwCOzZvD1d1VOCUfUOW`,
       accounts: [deployerPrivateKey],
     },
     optimismSepolia: {
-      url: `https://opt-sepolia.g.alchemy.com/v2/${providerApiKey}`,
+      url: "https://opt-sepolia.g.alchemy.com/v2/bOt7fsY-5BpYiQwCOzZvD1d1VOCUfUOW",
       accounts: [deployerPrivateKey],
     },
     base: {
