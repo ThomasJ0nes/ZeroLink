@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
-import { Bell, ChevronDown, Search, User } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,62 +26,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// Import icons
 import { BNB, Ethereum, Polygon } from "@/public/icons/Icons";
+import { useContracts } from "@/util/useContracts"; // Import the updated hook
+import { useWeb3Auth } from "@/context/Web3AuthContext"; // Import to check wallet connection
 
-// Define a type for the subscription
 type Subscription = {
   id: number;
+  user: string;
+  serviceProvider: string;
+  amount: string;
+  interval: string;
+  nextPaymentDate: string;
   name: string;
   description: string;
   price: string;
   frequency: string;
   image: string;
   chains: string[];
-  category: string; // Add the category property if needed
+  category: string;
 };
 
-// Sample subscription data
-const subscriptions: Subscription[] = [
-  {
-    id: 1,
-    name: "Netflix",
-    description: "Unlimited streaming of movies and TV shows",
-    price: "$9.99",
-    frequency: "month",
-    image: "/placeholder.svg?height=100&width=200",
-    chains: ["Ethereum", "Binance", "Polygon"],
-    category: "Entertainment", // Added category
-  },
-  {
-    id: 2,
-    name: "Spotify",
-    description: "Music streaming service",
-    price: "$4.99",
-    frequency: "month",
-    image: "/placeholder.svg?height=100&width=200",
-    chains: ["Ethereum", "Polygon"],
-    category: "Music", // Added category
-  },
-  {
-    id: 3,
-    name: "Amazon Prime",
-    description: "Fast shipping and video streaming",
-    price: "$12.99",
-    frequency: "month",
-    image: "/placeholder.svg?height=100&width=200",
-    chains: ["Ethereum", "Binance"],
-    category: "Shopping", // Added category
-  },
-  // Add more subscriptions as needed
-];
-
 export default function Component() {
+  const { fetchAllSubscriptions } = useContracts();
+  const { provider, loggedIn, login, initializing } = useWeb3Auth(); // Access provider and login status
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [selectedSubscription, setSelectedSubscription] =
     useState<Subscription | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [priceRange, setPriceRange] = useState("All");
+
+  useEffect(() => {
+    // Only fetch subscriptions if the wallet is connected and provider is available
+    const loadSubscriptions = async () => {
+      if (loggedIn && provider) {
+        try {
+          const subs = await fetchAllSubscriptions();
+          setSubscriptions(subs);
+        } catch (error) {
+          console.error("Failed to load subscriptions:", error);
+        }
+      }
+    };
+
+    loadSubscriptions();
+  }, [loggedIn, provider]); // Dependency array checks for wallet connection status
 
   // Extract categories dynamically from subscriptions
   const categories = [
@@ -106,15 +94,21 @@ export default function Component() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1">
-        <section className=" py-12 px-4 text-center">
+        <section className="py-12 px-4 text-center">
           <h1 className="text-4xl font-bold mb-4">
             Pay for Subscriptions on any Chain from any Chain
           </h1>
           <p className="text-xl mb-8">
-            Pay for subscriptions on you prefered chain regardless if the
-            subscriptions exists on a different chain.
+            Pay for subscriptions on your preferred chain regardless if the
+            subscriptions exist on a different chain.
           </p>
-          <Button size="lg">Connect Wallet/ Sign Up</Button>
+          {!loggedIn ? (
+            <Button size="lg" onClick={login}>
+              Connect Wallet / Sign Up
+            </Button>
+          ) : (
+            <Button size="lg">Wallet Connected</Button>
+          )}
         </section>
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="mb-8 grid gap-4 md:grid-cols-4">
@@ -160,10 +154,7 @@ export default function Component() {
                     className="w-full h-32 object-cover mb-4"
                     height="128"
                     src={subscription.image}
-                    style={{
-                      aspectRatio: "200/100",
-                      objectFit: "cover",
-                    }}
+                    style={{ aspectRatio: "200/100", objectFit: "cover" }}
                     width="200"
                   />
                   <CardTitle>{subscription.name}</CardTitle>
@@ -174,6 +165,9 @@ export default function Component() {
                   </p>
                   <p className="font-bold">
                     {subscription.price}/{subscription.frequency}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Payment Interval: {subscription.interval}
                   </p>
                   <div className="flex space-x-2 mt-2">
                     {subscription.chains.map((chain: string) => (
@@ -213,6 +207,9 @@ export default function Component() {
                         <p className="font-bold mb-2">
                           {selectedSubscription?.price}/
                           {selectedSubscription?.frequency}
+                        </p>
+                        <p className="text-sm text-gray-500 mb-2">
+                          Interval: {selectedSubscription?.interval}
                         </p>
                         <p className="mb-2">Available payment chains:</p>
                         <div className="flex space-x-2">
