@@ -7,31 +7,19 @@ import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/
 import {OAppCore} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppCore.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ISubscriptionManager} from "./interfaces/ISubscriptionManager.sol";
+import {Types} from "./libraries/Types.sol";
 
 contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     using OptionsBuilder for bytes;
 
-    struct Subscription {
-        address user; // The address of the subscriber
-        address serviceProvider; // The address of the service provider
-        uint256 amount; // Subscription amount to be paid
-        uint256 interval; // Payment interval in seconds
-        uint256 nextPaymentDate; // The timestamp for the next payment
-    }
-
-    event SubscriptionCanceled(uint256 indexed subscriptionId, address indexed user);
-
     uint32 public constant BASE_SEPOLIA_EID = 40245;
+    uint32 public constant OP_SEPOLIA_EID = 40232;
 
-    /// The `_options` variable is typically provided as an argument to both the `_quote` and `_lzSend` functions.
-    /// In this example, we demonstrate how to generate the `bytes` value for `_options` and pass it manually.
-    /// The `OptionsBuilder` is used to create new options and add an executor option for `LzReceive` with specified parameters.
-    /// An off-chain equivalent can be found under 'Message Execution Options' in the LayerZero V2 Documentation.
     bytes _options =
-        OptionsBuilder.newOptions().addExecutorLzReceiveOption(3000000, 0);
+        OptionsBuilder.newOptions().addExecutorLzReceiveOption(1000000, 0);
 
     uint256 public subscriptionCounter;
-    mapping(uint256 => Subscription) public subscriptions;
+    mapping(uint256 => Types.Subscription) public subscriptions;
     mapping(address => uint256[]) public userSubscriptions;
 
     /**
@@ -42,10 +30,19 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         address _endpoint
     ) OAppCore(_endpoint, /*owner*/ msg.sender) Ownable(msg.sender) {}
 
+    function setOptions(uint128 _gas) public onlyOwner {
+        _options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(
+            _gas,
+            0
+        );
+    }
+
     function createSubscription(
-        address serviceProvider,
+        string calldata serviceProviderName,
+        address serviceProviderAddress,
         uint256 amount,
-        uint256 interval
+        uint256 interval,
+        Types.Blockchain preferredBlockchain
     ) public returns (uint256) {
         if (amount == 0) {
             revert SubscriptionManager_LowAmount();
@@ -56,11 +53,13 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         uint256 subscriptionId = subscriptionCounter++;
 
-        Subscription memory subscription = Subscription(
+        Types.Subscription memory subscription = Types.Subscription(
             msg.sender,
-            serviceProvider,
+            serviceProviderName,
+            serviceProviderAddress,
             amount,
             interval,
+            preferredBlockchain,
             block.timestamp
         );
 
@@ -70,9 +69,11 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         emit SubscriptionCreated(
             subscriptionId,
             subscription.user,
-            subscription.serviceProvider,
+            subscription.serviceProviderName,
+            subscription.serviceProviderAddress,
             subscription.amount,
             subscription.interval,
+            subscription.preferredBlockchain,
             subscription.nextPaymentDate
         );
 
@@ -80,7 +81,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     function makePayment(uint256 subscriptionId) public payable {
-        Subscription memory subscription = subscriptions[subscriptionId];
+        Types.Subscription memory subscription = subscriptions[subscriptionId];
         if (subscription.user != msg.sender) {
             revert SubscriptionManager_OnlySubcriber();
         }
@@ -92,11 +93,13 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         bytes memory encodedMessage = abi.encode(
             subscriptionId,
             subscription.user,
-            subscription.serviceProvider,
+            subscription.serviceProviderAddress,
             subscription.amount
         );
         _lzSend(
-            BASE_SEPOLIA_EID,
+            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+                ? BASE_SEPOLIA_EID
+                : OP_SEPOLIA_EID,
             encodedMessage,
             _options,
             // Fee in native gas and ZRO token.
@@ -108,32 +111,27 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         emit PaymentInitiated(
             subscriptionId,
             subscription.user,
-            subscription.serviceProvider,
+            subscription.serviceProviderAddress,
             subscription.amount
         );
 
         emit MessageSent(
             subscriptionId,
             subscription.user,
-            subscription.serviceProvider,
+            subscription.serviceProviderAddress,
             subscription.amount,
-            BASE_SEPOLIA_EID
+            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+                ? BASE_SEPOLIA_EID
+                : OP_SEPOLIA_EID
         );
     }
 
-    function getUserSubscriptions(
-        address user
-    ) public view returns (uint256[] memory) {
-        return userSubscriptions[user];
-    }
-
     function cancelSubscription(uint256 subscriptionId) public {
-        Subscription storage subscription = subscriptions[subscriptionId];
+        Types.Subscription storage subscription = subscriptions[subscriptionId];
         if (subscription.user != msg.sender) {
             revert SubscriptionManager_OnlySubcriber();
         }
 
-        // Remove the subscription from the user's subscriptions array
         uint256[] storage userSubs = userSubscriptions[msg.sender];
         for (uint256 i = 0; i < userSubs.length; i++) {
             if (userSubs[i] == subscriptionId) {
@@ -145,32 +143,28 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         delete subscriptions[subscriptionId];
 
-        emit SubscriptionCanceled(subscriptionId, msg.sender);
+        emit SubscriptionCanceled(subscriptionId);
     }
 
-    function getAllUserSubscriptions() public view returns (Subscription[] memory) {
+    function getAllUserSubscriptions()
+        public
+        view
+        returns (Types.Subscription[] memory)
+    {
         uint256[] memory userSubIds = userSubscriptions[msg.sender];
-        Subscription[] memory userSubs = new Subscription[](userSubIds.length);
+        Types.Subscription[] memory userSubs = new Types.Subscription[](
+            userSubIds.length
+        );
         for (uint256 i = 0; i < userSubIds.length; i++) {
             userSubs[i] = subscriptions[userSubIds[i]];
         }
         return userSubs;
     }
 
-    /**
-     * @dev Converts an address to bytes32.
-     * @param _addr The address to convert.
-     * @return The bytes32 representation of the address.
-     */
     function addressToBytes32(address _addr) public pure returns (bytes32) {
         return bytes32(uint256(uint160(_addr)));
     }
 
-    /**
-     * @dev Converts bytes32 to an address.
-     * @param _b The bytes32 value to convert.
-     * @return The address representation of bytes32.
-     */
     function bytes32ToAddress(bytes32 _b) public pure returns (address) {
         return address(uint160(uint256(_b)));
     }
@@ -183,14 +177,21 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     function quote(
         uint256 subscriptionId
     ) public view returns (MessagingFee memory fee) {
-        Subscription memory subscription = subscriptions[subscriptionId];
+        Types.Subscription memory subscription = subscriptions[subscriptionId];
         bytes memory payload = abi.encode(
             subscriptionId,
             subscription.user,
-            subscription.serviceProvider,
+            subscription.serviceProviderAddress,
             subscription.amount
         );
-        fee = _quote(BASE_SEPOLIA_EID, payload, _options, false);
+        fee = _quote(
+            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+                ? BASE_SEPOLIA_EID
+                : OP_SEPOLIA_EID,
+            payload,
+            _options,
+            false
+        );
     }
 
     /**
@@ -210,7 +211,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         // Decode the payload to get the message
         uint256 subscriptionId = abi.decode(message, (uint256));
 
-        Subscription storage subscription = subscriptions[subscriptionId];
+        Types.Subscription storage subscription = subscriptions[subscriptionId];
         subscription.nextPaymentDate += subscription.interval;
 
         // Emit the event with the decoded message and sender's EID
@@ -221,7 +222,12 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             _origin.nonce
         );
 
-        emit PaymentFinished(subscriptionId, subscription.nextPaymentDate);
+        emit PaymentFinished(
+            subscriptionId,
+            subscription.user,
+            subscription.serviceProviderAddress,
+            subscription.amount
+        );
     }
 
     // The following functions are overrides required by Solidity.

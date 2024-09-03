@@ -1,26 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {Types} from "../libraries/Types.sol";
+
 interface ISubscriptionManager {
     event SubscriptionCreated(
-        uint256 subscriptionId,
+        uint256 indexed subscriptionId,
         address user,
-        address serviceProvider,
+        string serviceProviderName,
+        address serviceProviderAddress,
         uint256 amount,
         uint256 interval,
+        Types.Blockchain preferredBlockchain,
         uint256 nextPaymentDate
     );
     event PaymentInitiated(
-        uint256 subscriptionId,
+        uint256 indexed subscriptionId,
         address user,
-        address serviceProvider,
+        address serviceProviderAddress,
         uint256 amount
     );
-    event PaymentFinished(uint256 subscriptionId, uint256 nextPaymentDate);
+    event PaymentFinished(
+        uint256 indexed subscriptionId,
+        address user,
+        address serviceProviderAddress,
+        uint256 amount
+    );
+    event SubscriptionCanceled(uint256 indexed subscriptionId);
     event MessageSent(
         uint256 subscriptionId,
         address user,
-        address serviceProvider,
+        address serviceProviderAddress,
         uint256 amount,
         uint32 dstEid
     );
