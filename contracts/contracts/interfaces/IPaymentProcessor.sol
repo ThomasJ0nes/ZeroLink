@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 interface IPaymentProcessor {
-    // Event emitted when the tokens are transferred to an account on another chain.
     event TokensTransferred(
         bytes32 indexed messageId,
         uint64 indexed destinationChainSelector,
@@ -16,14 +15,14 @@ interface IPaymentProcessor {
     event MessageReceived(
         uint256 subscriptionId,
         address user,
-        address serviceProvider,
+        address serviceProviderAddress,
         uint256 amount,
         uint32 senderEid,
         bytes32 sender,
         uint64 nonce
     );
 
-    // Custom errors to provide more descriptive revert messages.
+    error PaymentProcessor_NotApprovedToTransferUSDCToken();
     error PaymentProcessor_NotEnoughBalanceToTransferTokens(
         uint256 currentBalance,
         uint256 calculatedFees
