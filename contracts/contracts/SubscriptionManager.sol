@@ -20,7 +20,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
     uint256 public subscriptionCounter;
     mapping(uint256 => Types.Subscription) public subscriptions;
-    mapping(address => uint256[]) public userSubscriptions;
+    mapping(address => Types.UserSubscription[]) public userSubscriptions;
 
     /**
      * @notice Initializes the OApp with the source chain's endpoint address.
@@ -38,11 +38,9 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     function createSubscription(
-        string calldata serviceProviderName,
-        address serviceProviderAddress,
+        string calldata serviceName,
         uint256 amount,
-        uint256 interval,
-        Types.Blockchain preferredBlockchain
+        uint256 interval
     ) public returns (uint256) {
         if (amount == 0) {
             revert SubscriptionManager_LowAmount();
@@ -55,111 +53,113 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         Types.Subscription memory subscription = Types.Subscription(
             msg.sender,
-            serviceProviderName,
-            serviceProviderAddress,
+            serviceName,
             amount,
-            interval,
-            preferredBlockchain,
-            block.timestamp
+            interval
         );
 
         subscriptions[subscriptionId] = subscription;
-        userSubscriptions[msg.sender].push(subscriptionId);
 
         emit SubscriptionCreated(
             subscriptionId,
-            subscription.user,
-            subscription.serviceProviderName,
-            subscription.serviceProviderAddress,
+            subscription.serviceProvider,
+            subscription.serviceName,
             subscription.amount,
-            subscription.interval,
-            subscription.preferredBlockchain,
-            subscription.nextPaymentDate
+            subscription.interval
         );
 
         return subscriptionId;
     }
 
-    function makePayment(uint256 subscriptionId) public payable {
-        Types.Subscription memory subscription = subscriptions[subscriptionId];
-        if (subscription.user != msg.sender) {
-            revert SubscriptionManager_OnlySubcriber();
-        }
-        if (subscription.nextPaymentDate > block.timestamp) {
-            revert SubscriptionManager_PaymentNotDueYet();
-        }
-
-        // Prepare the payload and send it to the target chain
-        bytes memory encodedMessage = abi.encode(
-            subscriptionId,
-            subscription.user,
-            subscription.serviceProviderAddress,
-            subscription.amount
-        );
-        _lzSend(
-            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
-                ? BASE_SEPOLIA_EID
-                : OP_SEPOLIA_EID,
-            encodedMessage,
-            _options,
-            // Fee in native gas and ZRO token.
-            MessagingFee(msg.value, 0),
-            // Refund address in case of failed source message.
-            payable(msg.sender)
-        );
-
-        emit PaymentInitiated(
-            subscriptionId,
-            subscription.user,
-            subscription.serviceProviderAddress,
-            subscription.amount
-        );
-
-        emit MessageSent(
-            subscriptionId,
-            subscription.user,
-            subscription.serviceProviderAddress,
-            subscription.amount,
-            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
-                ? BASE_SEPOLIA_EID
-                : OP_SEPOLIA_EID
-        );
+    // TODO: Jorge
+    function updateSubscription(uint256 subscriptionId) public {
+        // TODO: Validate onlyServiceProvider
+        // TODO: Update serviceName, amount, interval
+        // TODO: Emit event
     }
 
-    function cancelSubscription(uint256 subscriptionId) public {
-        Types.Subscription storage subscription = subscriptions[subscriptionId];
-        if (subscription.user != msg.sender) {
-            revert SubscriptionManager_OnlySubcriber();
-        }
-
-        uint256[] storage userSubs = userSubscriptions[msg.sender];
-        for (uint256 i = 0; i < userSubs.length; i++) {
-            if (userSubs[i] == subscriptionId) {
-                userSubs[i] = userSubs[userSubs.length - 1];
-                userSubs.pop();
-                break;
-            }
-        }
-
-        delete subscriptions[subscriptionId];
-
-        emit SubscriptionCanceled(subscriptionId);
+    // TODO: Jorge
+    function deleteSubscription(uint256 subscriptionId) public {
+        // TODO: Validate onlyServiceProvider
+        // TODO: Delete subscription and related information
+        // TODO: Emit event
     }
 
-    function getAllUserSubscriptions()
-        public
-        view
-        returns (Types.Subscription[] memory)
-    {
-        uint256[] memory userSubIds = userSubscriptions[msg.sender];
-        Types.Subscription[] memory userSubs = new Types.Subscription[](
-            userSubIds.length
+    // TODO: Hoang Vu
+    function subscribeSubscription(
+        uint256 subscriptionId,
+        Types.Blockchain preferredBlockchain // Use for first payment
+    ) public returns (uint256) {
+        // TODO: Make the first payment when subscribe (Hoang Vu)
+
+        userSubscriptions[msg.sender].push(
+            Types.UserSubscription({
+                subscriptionId: subscriptionId,
+                serviceProvider: subscriptions[subscriptionId].serviceProvider,
+                serviceName: subscriptions[subscriptionId].serviceName,
+                amount: subscriptions[subscriptionId].amount,
+                interval: subscriptions[subscriptionId].interval,
+                nextPaymentDate: block.timestamp +
+                    subscriptions[subscriptionId].interval
+            })
         );
-        for (uint256 i = 0; i < userSubIds.length; i++) {
-            userSubs[i] = subscriptions[userSubIds[i]];
-        }
-        return userSubs;
+
+        // TODO: Emit event
     }
+
+    // TODO: Jorge
+    function unsubscribeSubscription(uint256 subscriptionId) public {
+        // TODO: Validate onlySubscriber
+        // TODO: Delete related information
+        // TODO: Emit event
+    }
+
+    // TODO: Hoang Vu
+    // function makePayment(uint256 subscriptionId) public payable {
+    //     Types.Subscription memory subscription = subscriptions[subscriptionId];
+    //     if (subscription.user != msg.sender) {
+    //         revert SubscriptionManager_OnlySubcriber();
+    //     }
+    //     if (subscription.nextPaymentDate > block.timestamp) {
+    //         revert SubscriptionManager_PaymentNotDueYet();
+    //     }
+
+    //     // Prepare the payload and send it to the target chain
+    //     bytes memory encodedMessage = abi.encode(
+    //         subscriptionId,
+    //         subscription.user,
+    //         subscription.serviceProviderAddress,
+    //         subscription.amount
+    //     );
+    //     _lzSend(
+    //         subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+    //             ? BASE_SEPOLIA_EID
+    //             : OP_SEPOLIA_EID,
+    //         encodedMessage,
+    //         _options,
+    //         // Fee in native gas and ZRO token.
+    //         MessagingFee(msg.value, 0),
+    //         // Refund address in case of failed source message.
+    //         payable(msg.sender)
+    //     );
+
+    //     emit PaymentInitiated(
+    //         subscriptionId,
+    //         subscription.user,
+    //         subscription.serviceProviderAddress,
+    //         subscription.amount
+    //     );
+
+    //     emit MessageSent(
+    //         subscriptionId,
+    //         subscription.user,
+    //         subscription.serviceProviderAddress,
+    //         subscription.amount,
+    //         subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+    //             ? BASE_SEPOLIA_EID
+    //             : OP_SEPOLIA_EID
+    //     );
+    // }
 
     function addressToBytes32(address _addr) public pure returns (bytes32) {
         return bytes32(uint256(uint160(_addr)));
@@ -169,23 +169,26 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         return address(uint160(uint256(_b)));
     }
 
+    // TODO: Hoang Vu
     /**
      * @dev Quotes the gas needed to pay for the full omnichain transaction in native gas.
      * @param subscriptionId Subscription ID.
      * @notice _options variable is typically provided as an argument and not hard-coded.
      */
     function quote(
-        uint256 subscriptionId
+        uint256 subscriptionId,
+        address subscriber,
+        Types.Blockchain preferredBlockchain
     ) public view returns (MessagingFee memory fee) {
         Types.Subscription memory subscription = subscriptions[subscriptionId];
         bytes memory payload = abi.encode(
             subscriptionId,
-            subscription.user,
-            subscription.serviceProviderAddress,
+            subscriber,
+            subscription.serviceProvider,
             subscription.amount
         );
         fee = _quote(
-            subscription.preferredBlockchain == Types.Blockchain.BaseSepolia
+            preferredBlockchain == Types.Blockchain.BaseSepolia
                 ? BASE_SEPOLIA_EID
                 : OP_SEPOLIA_EID,
             payload,
@@ -194,6 +197,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         );
     }
 
+    // TODO: Hoang Vu
     /**
      * @dev Called when the Executor executes EndpointV2.lzReceive. It overrides the equivalent function in the parent OApp contract.
      * Protocol messages are defined as packets, comprised of the following parameters.
@@ -212,7 +216,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         uint256 subscriptionId = abi.decode(message, (uint256));
 
         Types.Subscription storage subscription = subscriptions[subscriptionId];
-        subscription.nextPaymentDate += subscription.interval;
+        // subscription.nextPaymentDate += subscription.interval;
 
         // Emit the event with the decoded message and sender's EID
         emit MessageReceived(
@@ -222,12 +226,12 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             _origin.nonce
         );
 
-        emit PaymentFinished(
-            subscriptionId,
-            subscription.user,
-            subscription.serviceProviderAddress,
-            subscription.amount
-        );
+        // emit PaymentFinished(
+        //     subscriptionId,
+        //     subscription.user,
+        //     subscription.serviceProviderAddress,
+        //     subscription.amount
+        // );
     }
 
     // The following functions are overrides required by Solidity.

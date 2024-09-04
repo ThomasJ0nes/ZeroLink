@@ -6,13 +6,10 @@ import {Types} from "../libraries/Types.sol";
 interface ISubscriptionManager {
     event SubscriptionCreated(
         uint256 indexed subscriptionId,
-        address user,
-        string serviceProviderName,
-        address serviceProviderAddress,
+        address serviceProvider,
+        string serviceName,
         uint256 amount,
-        uint256 interval,
-        Types.Blockchain preferredBlockchain,
-        uint256 nextPaymentDate
+        uint256 interval
     );
     event PaymentInitiated(
         uint256 indexed subscriptionId,
