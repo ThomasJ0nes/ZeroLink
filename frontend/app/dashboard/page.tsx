@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWeb3Auth } from "@/context/Web3AuthContext";
 
+import { useContracts } from "@/util/useContracts";
 import { ManageSubscriptions } from "./sections/ManageSubscriptions";
 
 import {
@@ -50,13 +51,24 @@ import Actions from "./sections/Actions";
 import PaymentHistory from "./sections/PaymentHistory";
 import UserSettings from "./sections/UserSettings";
 
+// Define the type for a Subscription
+type Subscription = {
+  id: number;
+  user: string;
+  amount: number;
+  serviceProviderName: string;
+  nextPayment: Date;
+};
+
 export default function DashboardPage() {
   const { user, userAddress, getBalance, logout } = useWeb3Auth();
+  const { fetchSubscriptionsByUser } = useContracts();
   const router = useRouter();
   const [activePage, setActivePage] = useState("dashboard");
   const [activeChain, setActiveChain] = useState("Sepolia");
   const [showNotifications, setShowNotifications] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
+  const [activeSubscriptions, setActiveSubscription] = useState<Subscription[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -66,9 +78,21 @@ export default function DashboardPage() {
     }
   }, [user, getBalance, router]);
 
+  useEffect(() => {
+    if (user) {
+      handleGetActiveSubscriptions();
+    }
+  }, [user]);
+
   const handleLogout = async () => {
     await logout();
     router.push("/");
+  };
+
+  const handleGetActiveSubscriptions = async () => {
+    const subscriptions = await fetchSubscriptionsByUser();
+    console.log(subscriptions)
+    setActiveSubscription(subscriptions);
   };
 
   const renderContent = () => {
@@ -95,26 +119,19 @@ export default function DashboardPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow>
-                          <TableCell>Netflix</TableCell>
-                          <TableCell>$14.99</TableCell>
-                          <TableCell>2023-07-15</TableCell>
-                          <TableCell>
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                            Active
-                          </span>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Spotify</TableCell>
-                          <TableCell>$9.99</TableCell>
-                          <TableCell>2023-07-20</TableCell>
-                          <TableCell>
-                          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
-                            Pending
-                          </span>
-                          </TableCell>
-                        </TableRow>
+                        {activeSubscriptions.map(subscription => (
+                          <TableRow key={subscription.id}>
+                            <TableCell>{subscription.serviceProviderName}</TableCell>
+                            <TableCell>{subscription.amount}</TableCell>
+                            <TableCell>{subscription.nextPaymentDate}</TableCell>
+                            <TableCell>
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                              Active
+                            </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                       
                       </TableBody>
                     </Table>
                   </CardContent>
