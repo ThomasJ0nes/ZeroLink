@@ -27,8 +27,9 @@ contract PaymentProcessor is OAppSender, OAppReceiver, IPaymentProcessor {
         OptionsBuilder.newOptions().addExecutorLzReceiveOption(3000000, 0);
 
     uint64 public constant SEPOLIA_CHAIN_SELECTOR = 16015286601757825753;
-    address public constant USDC_TOKEN =
-        0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+
+    //optimmism sepolia
+    address public constant USDC_TOKEN = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
     IRouterClient public s_router;
     IERC20 public s_linkToken;
 
