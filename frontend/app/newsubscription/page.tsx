@@ -24,14 +24,25 @@ import {
 import { Wallet, Clock, HandCoins, Loader } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+// Define blockchain options according to the `Types.Blockchain` enum in Solidity
+const blockchainOptions = {
+  BaseSepolia: 0,
+  OP_Sepolia: 1,
+};
+
 const CreateSubscription: React.FC = () => {
   const { initializing, loggedIn, login, provider } = useWeb3Auth();
-  const [serviceProvider, setServiceProvider] = useState<string>("");
+  const [serviceProviderName, setServiceProviderName] = useState<string>("");
+  const [serviceProviderAddress, setServiceProviderAddress] =
+    useState<string>("");
   const [ethAmount, setEthAmount] = useState<string>("");
   const [intervalValue, setIntervalValue] = useState("1");
   const [intervalUnit, setIntervalUnit] = useState("days");
   const [customInterval, setCustomInterval] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // New loading state
+  const [isLoading, setIsLoading] = useState(false);
+  const [preferredBlockchain, setPreferredBlockchain] = useState<number>(
+    blockchainOptions.BaseSepolia
+  );
   const { getSubscriptionManagerContract } = useContracts();
 
   const calculateSeconds = () => {
@@ -83,22 +94,27 @@ const CreateSubscription: React.FC = () => {
       return;
     }
 
-    setIsLoading(true); // Set loading state to true
+    setIsLoading(true);
 
     try {
-      const contract = await getSubscriptionManagerContract(); // Await the contract
+      const contract = await getSubscriptionManagerContract();
+
+      // Correctly format and pass the arguments to match Solidity's function signature
       const tx = await contract.createSubscription(
-        serviceProvider,
-        ethers.parseEther(ethAmount), // Convert to Wei
-        calculateSeconds()
+        serviceProviderName, // Argument 1: serviceProviderName (string)
+        serviceProviderAddress, // Argument 2: serviceProviderAddress (address)
+        ethers.parseUnits(ethAmount, "ether"), // Argument 3: amount (uint256), converted to Wei
+        calculateSeconds(), // Argument 4: interval (uint256)
+        preferredBlockchain // Argument 5: preferredBlockchain (enum, passed as an integer)
       );
+
       await tx.wait();
       alert("Subscription created successfully!");
     } catch (error) {
       console.error("Error creating subscription:", error);
       alert("Failed to create subscription.");
     } finally {
-      setIsLoading(false); // Reset loading state
+      setIsLoading(false);
     }
   };
 
@@ -121,14 +137,25 @@ const CreateSubscription: React.FC = () => {
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
+                  <Label htmlFor="service-name">Service Provider Name</Label>
+                  <Input
+                    id="service-name"
+                    placeholder="Enter service provider name"
+                    value={serviceProviderName}
+                    onChange={(e) => setServiceProviderName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Service Provider Address</Label>
                   <div className="relative">
                     <Wallet className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="address"
                       placeholder="Enter recipient address"
-                      value={serviceProvider}
-                      onChange={(e) => setServiceProvider(e.target.value)}
+                      value={serviceProviderAddress}
+                      onChange={(e) =>
+                        setServiceProviderAddress(e.target.value)
+                      }
                       className="pl-8"
                     />
                   </div>
@@ -207,6 +234,33 @@ const CreateSubscription: React.FC = () => {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="blockchain">
+                    Preferred Payment Blockchain
+                  </Label>
+                  <Select
+                    value={preferredBlockchain.toString()}
+                    onValueChange={(value) =>
+                      setPreferredBlockchain(Number(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        value={blockchainOptions.BaseSepolia.toString()}
+                      >
+                        BaseSepolia
+                      </SelectItem>
+                      <SelectItem
+                        value={blockchainOptions.OP_Sepolia.toString()}
+                      >
+                        OP_Sepolia
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             )}
           </CardContent>
@@ -215,9 +269,9 @@ const CreateSubscription: React.FC = () => {
               <Button
                 className="w-full"
                 onClick={handleCreateSubscription}
-                disabled={isLoading} // Disable the button while loading
+                disabled={isLoading}
               >
-                {isLoading ? ( // Show loader while loading
+                {isLoading ? (
                   <>
                     <Loader className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
