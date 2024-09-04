@@ -8,7 +8,7 @@ const SUBSCRIPTION_MANAGER_ADDRESS = '0x52a09DA09a777086a7F5F58cC6E9c32cA793a604
 const PAYMENT_PROCESSOR_ADDRESS = '0x6dFCe89dA39C302e8C92d7DEFC6f3fAce5fF497d';
 
 export const useContracts = () => {
-  const { provider, loggedIn } = useWeb3Auth(); // Access provider and login status from context
+  const { provider, loggedIn, userAddress } = useWeb3Auth(); // Access provider and login status from context
 
   // Initialize ethers provider and signer only if the provider is available and user is logged in
   const initializeEthers = async () => {
@@ -93,7 +93,34 @@ const formatInterval = (seconds: number): string => {
   return `${years} year${years === 1 ? '' : 's'}`;
 };
 
-  
+const fetchPaymentHistory = async () => {
+  const ethersProvider = new ethers.BrowserProvider(provider as any);
 
-  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions };
+  const payments = [];
+  const contract = await getSubscriptionManagerContract(); 
+  const filter = contract.filters.PaymentFinished(null);
+  const logs = await contract.queryFilter(filter, 6624434, 6627434);
+
+  for (let i = 0; i < logs.length; i++) {
+    // Get the date of this payment
+    const block = await ethersProvider.getBlock(logs[i].blockNumber);
+    const eventDate = new Date(block.timestamp * 1000);
+
+    if(userAddress === logs[i]?.args[1]){
+      payments.push({
+        id: i,
+        date: eventDate,
+        service: "Netflix",
+        amount: ethers.formatUnits(logs[i]?.args[3], "ether"),
+        blockchain: "Ethereum",
+        status: "Completed",
+        hash: logs[i].transactionHash
+      });
+    }
+   
+    return payments;
+  }
+}
+
+  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchPaymentHistory };
 };

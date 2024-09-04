@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ArrowUpDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+import { useContracts } from "@/util/useContracts";
 
 // Define the type for a transaction
 type Transaction = {
@@ -72,6 +74,10 @@ const mockTransactions: Transaction[] = [
 ];
 
 export default function PaymentHistory() {
+  const { fetchPaymentHistory } = useContracts();
+
+  const [allTransactions, setAllTransactions] =
+    useState<Transaction[]>([]);
   const [transactions, setTransactions] =
     useState<Transaction[]>(mockTransactions);
   const [sortColumn, setSortColumn] = useState<keyof Transaction>("date");
@@ -79,6 +85,10 @@ export default function PaymentHistory() {
   const [dateFilter, setDateFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [blockchainFilter, setBlockchainFilter] = useState<string>("All");
+
+  useEffect(() => {
+    getPaymentHistory();
+ }, []);
 
   const sortTransactions = (column: keyof Transaction) => {
     const direction =
@@ -94,7 +104,7 @@ export default function PaymentHistory() {
   };
 
   const filterTransactions = () => {
-    let filtered = mockTransactions;
+    let filtered = allTransactions;
 
     if (dateFilter) {
       const filterDate = new Date(dateFilter);
@@ -111,6 +121,13 @@ export default function PaymentHistory() {
 
     setTransactions(filtered);
   };
+
+  const getPaymentHistory = async () => {
+    const payments = await fetchPaymentHistory(); 
+    console.log(payments);
+    setAllTransactions(payments);
+    setTransactions(payments);
+  }
 
   return (
     <Card className="w-full">
