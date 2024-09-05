@@ -60,7 +60,7 @@ contract PaymentProcessor is
         (
             uint256 subscriptionId,
             address subscriber,
-            address serviceProvider,
+            address provider,
             uint256 amount,
             ,
             ,
@@ -70,11 +70,11 @@ contract PaymentProcessor is
                 (uint256, address, address, uint256, uint32, bytes32, uint64)
             );
 
-        if (IERC20(usdcToken).allowance(subscriber, address(this)) < amount) {
+        if (IERC20(usdcToken).allowance(subscriber, address(this)) != amount) {
             revert PaymentProcessor_NotApprovedToTransferUSDCToken();
         }
         IERC20(usdcToken).safeTransferFrom(subscriber, address(this), amount);
-        _transferTokensPayNative(serviceProvider, amount);
+        _transferTokensPayNative(provider, amount);
 
         // Prepare the payload and send it to the target chain
         bytes memory encodedMessage = abi.encode(subscriptionId, subscriber);
@@ -149,7 +149,7 @@ contract PaymentProcessor is
         (
             uint256 subscriptionId,
             address subscriber,
-            address serviceProvider,
+            address provider,
             uint256 amount
         ) = abi.decode(_message, (uint256, address, address, uint256));
 
@@ -157,7 +157,7 @@ contract PaymentProcessor is
         emit MessageReceived(
             subscriptionId,
             subscriber,
-            serviceProvider,
+            provider,
             amount,
             _origin.srcEid,
             _origin.sender,
@@ -166,13 +166,13 @@ contract PaymentProcessor is
     }
 
     function _transferTokensPayNative(
-        address _serviceProvider,
+        address _provider,
         uint256 _amount
     ) internal returns (bytes32 messageId) {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         // address(0) means fees are paid in native gas
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(
-            _serviceProvider,
+            _provider,
             _amount,
             address(0)
         );
@@ -199,7 +199,7 @@ contract PaymentProcessor is
         emit TokensTransferred(
             messageId,
             SEPOLIA_CHAIN_SELECTOR,
-            _serviceProvider,
+            _provider,
             usdcToken,
             _amount,
             address(0),
