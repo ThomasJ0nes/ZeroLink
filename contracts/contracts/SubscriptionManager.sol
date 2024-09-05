@@ -12,158 +12,321 @@ import {Types} from "./libraries/Types.sol";
 contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     using OptionsBuilder for bytes;
 
-    uint32 public constant BASE_SEPOLIA_EID = 40245;
-    uint32 public constant OP_SEPOLIA_EID = 40232;
-
-    bytes _options =
+    bytes lzOptions =
         OptionsBuilder.newOptions().addExecutorLzReceiveOption(1000000, 0);
 
+    mapping(string => uint32) public lzBlockchainEIDs;
+
     uint256 public subscriptionCounter;
+
     mapping(uint256 => Types.Subscription) public subscriptions;
-    mapping(address => Types.UserSubscription[]) public userSubscriptions;
+
+    mapping(address => uint256[]) public providerToSubscriptions;
+
+    mapping(address => Types.SubcribedSubscription[])
+        public subscriberToSubscriptions;
 
     /**
      * @notice Initializes the OApp with the source chain's endpoint address.
-     * @param _endpoint The endpoint address.
+     * @param _lzEndpoint The endpoint address from LayerZero
      */
     constructor(
-        address _endpoint
-    ) OAppCore(_endpoint, /*owner*/ msg.sender) Ownable(msg.sender) {}
+        address _lzEndpoint
+    ) OAppCore(_lzEndpoint, msg.sender) Ownable(msg.sender) {
+        lzBlockchainEIDs["optimismSepolia"] = 40232;
+        lzBlockchainEIDs["polygonAmoy"] = 40267;
+    }
 
-    function setOptions(uint128 _gas) public onlyOwner {
-        _options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(
+    function setLzOptions(uint128 _gas) public onlyOwner {
+        lzOptions = OptionsBuilder.newOptions().addExecutorLzReceiveOption(
             _gas,
             0
         );
     }
 
-    function createSubscription(
-        string calldata serviceName,
-        uint256 amount,
-        uint256 interval
-    ) public returns (uint256) {
-        if (amount == 0) {
-            revert SubscriptionManager_LowAmount();
+    function setLzBlockchainEIDs(
+        string[] calldata _blockchains,
+        uint32[] calldata _eids
+    ) public onlyOwner {
+        for (uint256 i = 0; i < _blockchains.length; i++) {
+            lzBlockchainEIDs[_blockchains[i]] = _eids[i];
         }
-        if (interval == 0) {
-            revert SubscriptionManager_LowInterval();
+    }
+
+    function createSubscription(
+        string calldata _name,
+        uint256 _amount,
+        uint256 _interval
+    ) public {
+        if (bytes(_name).length == 0) {
+            revert SubscriptionManager_EmptyName();
+        }
+        if (_amount == 0) {
+            revert SubscriptionManager_ZeroAmount();
+        }
+        if (_interval == 0) {
+            revert SubscriptionManager_ZeroInterval();
         }
 
         uint256 subscriptionId = subscriptionCounter++;
 
-        Types.Subscription memory subscription = Types.Subscription(
-            msg.sender,
-            serviceName,
-            amount,
-            interval
-        );
+        Types.Subscription memory subscription = Types.Subscription({
+            subscriptionId: subscriptionId,
+            provider: msg.sender,
+            name: _name,
+            amount: _amount,
+            interval: _interval
+        });
 
         subscriptions[subscriptionId] = subscription;
+        providerToSubscriptions[msg.sender].push(subscriptionId);
 
         emit SubscriptionCreated(
             subscriptionId,
-            subscription.serviceProvider,
-            subscription.serviceName,
-            subscription.amount,
-            subscription.interval
+            subscription.provider,
+            _name,
+            _amount,
+            _interval
         );
-
-        return subscriptionId;
     }
 
-    // TODO: Jorge
     function updateSubscription(
-        uint256 subscriptionId,
-        string calldata newServiceName,
-        uint256 newAmount,
-        uint256 newInterval
+        uint256 _subscriptionId,
+        string calldata _newName,
+        uint256 _newAmount,
+        uint256 _newInterval
     ) public {
-        Types.Subscription storage subscription = subscriptions[subscriptionId];
-        require(
-            subscription.serviceProvider == msg.sender,
-            "Only the service provider can update"
-        );
+        Types.Subscription memory subscription = subscriptions[_subscriptionId];
 
-        subscription.serviceName = newServiceName;
-        subscription.amount = newAmount;
-        subscription.interval = newInterval;
+        if (subscription.provider != msg.sender) {
+            revert SubscriptionManager_OnlyProvider();
+        }
+
+        if (bytes(_newName).length > 0) {
+            subscriptions[_subscriptionId].name = _newName;
+        }
+        if (_newAmount > 0) {
+            subscriptions[_subscriptionId].amount = _newAmount;
+        }
+        if (_newInterval > 0) {
+            subscriptions[_subscriptionId].interval = _newInterval;
+        }
 
         emit SubscriptionUpdated(
-            subscriptionId,
-            subscription.serviceProvider,
-            subscription.serviceName,
-            subscription.amount,
-            subscription.interval
+            _subscriptionId,
+            subscription.provider,
+            _newName,
+            _newAmount,
+            _newInterval
         );
     }
 
-    // TODO: Jorge
-    function deleteSubscription(uint256 subscriptionId) public {
-        Types.Subscription storage subscription = subscriptions[subscriptionId];
-        require(
-            subscription.serviceProvider == msg.sender,
-            "Only the service provider can delete"
-        );
-
-        delete subscriptions[subscriptionId];
-
-        // Remove from userSubscriptions mapping if exists
-        for (uint256 i = 0; i < userSubscriptions[msg.sender].length; i++) {
-            if (
-                userSubscriptions[msg.sender][i].subscriptionId ==
-                subscriptionId
-            ) {
-                delete userSubscriptions[msg.sender][i];
-                break;
-            }
-        }
-
-        emit SubscriptionDeleted(subscriptionId, msg.sender);
-    }
-
-    // TODO: Jorge
-    function unsubscribeSubscription(uint256 subscriptionId) public {
-        Types.Subscription storage subscription = subscriptions[subscriptionId];
-        bool found = false;
-
-        for (uint256 i = 0; i < userSubscriptions[msg.sender].length; i++) {
-            if (
-                userSubscriptions[msg.sender][i].subscriptionId ==
-                subscriptionId
-            ) {
-                found = true;
-                delete userSubscriptions[msg.sender][i];
-                break;
-            }
-        }
-
-        require(found, "You are not subscribed to this service");
-
-        emit SubscriptionUnsubscribed(subscriptionId, msg.sender);
-    }
-
-    // TODO: Hoang Vu
     function subscribeSubscription(
-        uint256 subscriptionId,
-        Types.Blockchain preferredBlockchain // Use for first payment
-    ) public returns (uint256) {
-        // First payment logic should be added here, handled by Hoang Vu
+        uint256 _subscriptionId,
+        string calldata _preferredBlockchain
+    ) public payable {
+        Types.Subscription memory subscription = subscriptions[_subscriptionId];
 
-        userSubscriptions[msg.sender].push(
-            Types.UserSubscription({
-                subscriptionId: subscriptionId,
-                serviceProvider: subscriptions[subscriptionId].serviceProvider,
-                serviceName: subscriptions[subscriptionId].serviceName,
-                amount: subscriptions[subscriptionId].amount,
-                interval: subscriptions[subscriptionId].interval,
-                nextPaymentDate: block.timestamp +
-                    subscriptions[subscriptionId].interval
+        if (subscription.provider == msg.sender) {
+            revert SubscriptionManager_NotProvider();
+        }
+
+        subscriberToSubscriptions[msg.sender].push(
+            Types.SubcribedSubscription({
+                subscriptionId: _subscriptionId,
+                nextPaymentDate: 0
             })
         );
 
-        emit SubscriptionSubscribed(subscriptionId, msg.sender);
+        emit SubscriptionSubscribed(_subscriptionId, msg.sender);
 
-        return subscriptionId;
+        // Prepare the payload and send it to the target chain
+        bytes memory encodedMessage = abi.encode(
+            _subscriptionId,
+            msg.sender,
+            subscription.provider,
+            subscription.amount
+        );
+        _lzSend(
+            lzBlockchainEIDs[_preferredBlockchain],
+            encodedMessage,
+            lzOptions,
+            // Fee in native gas and ZRO token.
+            MessagingFee(msg.value, 0),
+            // Refund address in case of failed source message.
+            payable(msg.sender)
+        );
+
+        emit PaymentInitiated(
+            _subscriptionId,
+            msg.sender,
+            subscription.provider,
+            subscription.amount
+        );
+
+        emit MessageSent(
+            _subscriptionId,
+            msg.sender,
+            subscription.provider,
+            subscription.amount,
+            lzBlockchainEIDs[_preferredBlockchain]
+        );
+    }
+
+    function unsubscribeSubscription(uint256 _subscriptionId) public {
+        bool found = false;
+
+        uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender]
+            .length;
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            if (
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
+                _subscriptionId
+            ) {
+                found = true;
+                delete subscriberToSubscriptions[msg.sender][i];
+
+                emit SubscriptionUnsubscribed(_subscriptionId, msg.sender);
+
+                break;
+            }
+        }
+
+        if (!found) {
+            revert SubscriptionManager_OnlySubcriber();
+        }
+    }
+
+    function makePayment(
+        uint256 _subscriptionId,
+        string calldata _preferredBlockchain
+    ) public payable {
+        bool found = false;
+
+        uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender]
+            .length;
+
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            if (
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
+                _subscriptionId
+            ) {
+                Types.Subscription memory subscription = subscriptions[
+                    _subscriptionId
+                ];
+                Types.SubcribedSubscription
+                    memory userSubscription = subscriberToSubscriptions[
+                        msg.sender
+                    ][i];
+
+                if (userSubscription.nextPaymentDate > block.timestamp) {
+                    revert SubscriptionManager_PaymentNotDueYet();
+                }
+
+                // Prepare the payload and send it to the target chain
+                bytes memory encodedMessage = abi.encode(
+                    _subscriptionId,
+                    msg.sender,
+                    subscription.provider,
+                    subscription.amount
+                );
+                _lzSend(
+                    lzBlockchainEIDs[_preferredBlockchain],
+                    encodedMessage,
+                    lzOptions,
+                    // Fee in native gas and ZRO token.
+                    MessagingFee(msg.value, 0),
+                    // Refund address in case of failed source message.
+                    payable(msg.sender)
+                );
+
+                emit PaymentInitiated(
+                    _subscriptionId,
+                    msg.sender,
+                    subscription.provider,
+                    subscription.amount
+                );
+
+                emit MessageSent(
+                    _subscriptionId,
+                    msg.sender,
+                    subscription.provider,
+                    subscription.amount,
+                    lzBlockchainEIDs[_preferredBlockchain]
+                );
+
+                break;
+            }
+        }
+
+        if (!found) {
+            revert SubscriptionManager_OnlySubcriber();
+        }
+    }
+
+    function getAllSubscriptions()
+        public
+        view
+        returns (Types.Subscription[] memory allSubscriptions)
+    {
+        allSubscriptions = new Types.Subscription[](subscriptionCounter);
+
+        for (uint256 i = 0; i < subscriptionCounter; i++) {
+            allSubscriptions[i] = subscriptions[i];
+        }
+    }
+
+    function getAllSubscriptionsForProvider(
+        address provider
+    ) public view returns (Types.Subscription[] memory allSubscriptions) {
+        uint256 subscriptionsLength = providerToSubscriptions[provider].length;
+
+        allSubscriptions = new Types.Subscription[](subscriptionsLength);
+
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            allSubscriptions[i] = subscriptions[
+                providerToSubscriptions[provider][i]
+            ];
+        }
+    }
+
+    function getAllSubscriptionsForSubscriber(
+        address subscriber
+    )
+        public
+        view
+        returns (Types.DetailSubcribedSubscription[] memory allSubscriptions)
+    {
+        uint256 subscriptionsLength = subscriberToSubscriptions[subscriber]
+            .length;
+
+        allSubscriptions = new Types.DetailSubcribedSubscription[](
+            subscriptionsLength
+        );
+
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            uint256 subscriptionId = subscriberToSubscriptions[subscriber][i]
+                .subscriptionId;
+            uint nextPaymentDate = subscriberToSubscriptions[subscriber][i]
+                .nextPaymentDate;
+            Types.Subscription memory subscription = subscriptions[
+                subscriptionId
+            ];
+
+            Types.DetailSubcribedSubscription
+                memory detailSubcribedSubscription = Types
+                    .DetailSubcribedSubscription({
+                        subscriptionId: subscriptionId,
+                        provider: subscription.provider,
+                        name: subscription.name,
+                        amount: subscription.amount,
+                        interval: subscription.interval,
+                        nextPaymentDate: nextPaymentDate
+                    });
+
+            allSubscriptions[i] = detailSubcribedSubscription;
+        }
+        return allSubscriptions;
     }
 
     function addressToBytes32(address _addr) public pure returns (bytes32) {
@@ -174,45 +337,81 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         return address(uint160(uint256(_b)));
     }
 
-    // TODO: Hoang Vu
+    /**
+     * @dev Quotes the gas needed to pay for the full omnichain transaction in native gas.
+     * @param _subscriptionId Subscription ID.
+     * @param _subscriber Subscriber address.
+     * @param _preferredBlockchain Preferred blockchain.
+     * @notice _options variable is typically provided as an argument and not hard-coded.
+     */
     function quote(
-        uint256 subscriptionId,
-        address subscriber,
-        Types.Blockchain preferredBlockchain
+        uint256 _subscriptionId,
+        address _subscriber,
+        string calldata _preferredBlockchain
     ) public view returns (MessagingFee memory fee) {
-        Types.Subscription memory subscription = subscriptions[subscriptionId];
+        Types.Subscription memory subscription = subscriptions[_subscriptionId];
         bytes memory payload = abi.encode(
-            subscriptionId,
-            subscriber,
-            subscription.serviceProvider,
+            _subscriptionId,
+            _subscriber,
+            subscription.provider,
             subscription.amount
         );
         fee = _quote(
-            preferredBlockchain == Types.Blockchain.BaseSepolia
-                ? BASE_SEPOLIA_EID
-                : OP_SEPOLIA_EID,
+            lzBlockchainEIDs[_preferredBlockchain],
             payload,
-            _options,
+            lzOptions,
             false
         );
     }
 
-    // TODO: Hoang Vu
+    /**
+     * @dev Called when the Executor executes EndpointV2.lzReceive. It overrides the equivalent function in the parent OApp contract.
+     * Protocol messages are defined as packets, comprised of the following parameters.
+     * @param _origin A struct containing information about where the packet came from.
+     * _guid A global unique identifier for tracking the packet.
+     * @param _message Encoded message.
+     */
     function _lzReceive(
         Origin calldata _origin,
-        bytes32 /*_guid*/,
-        bytes calldata message,
-        address /*executor*/, 
-        bytes calldata /*_extraData*/ 
+        bytes32 /*guid_*/,
+        bytes calldata _message,
+        address /*executor_*/, // Executor address as specified by the OApp.
+        bytes calldata /*extraData_*/ // Any extra data or options to trigger on receipt.
     ) internal override {
-        uint256 subscriptionId = abi.decode(message, (uint256));
-        Types.Subscription storage subscription = subscriptions[subscriptionId];
+        // Decode the payload to get the message
+        (uint256 subscriptionId, address subscriber) = abi.decode(
+            _message,
+            (uint256, address)
+        );
+
+        Types.Subscription memory subscription = subscriptions[subscriptionId];
+
+        uint256 subscriptionsLength = subscriberToSubscriptions[subscriber]
+            .length;
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            if (
+                subscriberToSubscriptions[subscriber][i].subscriptionId ==
+                subscriptionId
+            ) {
+                subscriberToSubscriptions[subscriber][i]
+                    .nextPaymentDate += subscription.interval;
+                break;
+            }
+        }
 
         emit MessageReceived(
             subscriptionId,
+            subscriber,
             _origin.srcEid,
             _origin.sender,
             _origin.nonce
+        );
+
+        emit PaymentFinished(
+            subscriptionId,
+            subscriber,
+            subscription.provider,
+            subscription.amount
         );
     }
 
