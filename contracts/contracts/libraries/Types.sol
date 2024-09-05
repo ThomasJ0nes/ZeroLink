@@ -3,17 +3,22 @@ pragma solidity 0.8.24;
 
 library Types {
     struct Subscription {
-        address serviceProvider;
-        string serviceName;
+        uint256 subscriptionId;
+        address provider;
+        string name;
         uint256 amount;
         uint256 interval;
-        bool active;
     }
 
-    struct UserSubscription {
+    struct SubcribedSubscription {
         uint256 subscriptionId;
-        address serviceProvider;
-        string serviceName;
+        uint256 nextPaymentDate;
+    }
+
+    struct DetailSubcribedSubscription {
+        uint256 subscriptionId;
+        address provider;
+        string name;
         uint256 amount;
         uint256 interval;
         uint256 nextPaymentDate;

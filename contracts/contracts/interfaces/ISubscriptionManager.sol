@@ -6,25 +6,17 @@ import {Types} from "../libraries/Types.sol";
 interface ISubscriptionManager {
     event SubscriptionCreated(
         uint256 indexed subscriptionId,
-        address indexed serviceProvider,
-        string serviceName,
+        address indexed provider,
+        string name,
         uint256 amount,
         uint256 interval
     );
     event SubscriptionUpdated(
         uint256 indexed subscriptionId,
-        address indexed serviceProvider,
-        string newServiceName,
+        address indexed provider,
+        string newName,
         uint256 newAmount,
         uint256 newInterval
-    );
-    event SubscriptionEnabled(
-        uint256 indexed subscriptionId,
-        address indexed serviceProvider
-    );
-    event SubscriptionDisabled(
-        uint256 indexed subscriptionId,
-        address indexed serviceProvider
     );
 
     event SubscriptionSubscribed(
@@ -39,20 +31,20 @@ interface ISubscriptionManager {
     event PaymentInitiated(
         uint256 indexed subscriptionId,
         address indexed subscriber,
-        address indexed serviceProvider,
+        address indexed provider,
         uint256 amount
     );
     event PaymentFinished(
         uint256 indexed subscriptionId,
         address indexed subscriber,
-        address indexed serviceProvider,
+        address indexed provider,
         uint256 amount
     );
 
     event MessageSent(
         uint256 indexed subscriptionId,
         address indexed subscriber,
-        address indexed serviceProvider,
+        address indexed provider,
         uint256 amount,
         uint32 dstEid
     );
@@ -64,13 +56,11 @@ interface ISubscriptionManager {
         uint64 nonce
     );
 
-    error SubscriptionManager_EmptyString();
+    error SubscriptionManager_EmptyName();
     error SubscriptionManager_ZeroAmount();
     error SubscriptionManager_ZeroInterval();
-    error SubscriptionManager_OnlyServiceProvider();
-    error SubscriptionManager_NotServiceProvider();
+    error SubscriptionManager_OnlyProvider();
+    error SubscriptionManager_NotProvider();
     error SubscriptionManager_OnlySubcriber();
-    error SubscriptionManager_ActiveSubscription();
-    error SubscriptionManager_InactiveSubscription();
     error SubscriptionManager_PaymentNotDueYet();
 }

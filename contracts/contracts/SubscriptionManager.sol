@@ -19,9 +19,12 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
     uint256 public subscriptionCounter;
 
-    mapping(uint256 => Types.Subscription) public subscriptions; // All subscriptions made by all users
+    mapping(uint256 => Types.Subscription) public subscriptions;
 
-    mapping(address => Types.UserSubscription[]) public userSubscriptions; // Subcribed subscriptions of each user
+    mapping(address => uint256[]) public providerToSubscriptions;
+
+    mapping(address => Types.SubcribedSubscription[])
+        public subscriberToSubscriptions;
 
     /**
      * @notice Initializes the OApp with the source chain's endpoint address.
@@ -51,12 +54,12 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     function createSubscription(
-        string calldata _serviceName,
+        string calldata _name,
         uint256 _amount,
         uint256 _interval
     ) public {
-        if (bytes(_serviceName).length == 0) {
-            revert SubscriptionManager_EmptyString();
+        if (bytes(_name).length == 0) {
+            revert SubscriptionManager_EmptyName();
         }
         if (_amount == 0) {
             revert SubscriptionManager_ZeroAmount();
@@ -65,21 +68,23 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             revert SubscriptionManager_ZeroInterval();
         }
 
+        uint256 subscriptionId = subscriptionCounter++;
+
         Types.Subscription memory subscription = Types.Subscription({
-            serviceProvider: msg.sender,
-            serviceName: _serviceName,
+            subscriptionId: subscriptionId,
+            provider: msg.sender,
+            name: _name,
             amount: _amount,
-            interval: _interval,
-            active: true
+            interval: _interval
         });
 
-        uint256 subscriptionId = subscriptionCounter++;
         subscriptions[subscriptionId] = subscription;
+        providerToSubscriptions[msg.sender].push(subscriptionId);
 
         emit SubscriptionCreated(
             subscriptionId,
-            subscription.serviceProvider,
-            _serviceName,
+            subscription.provider,
+            _name,
             _amount,
             _interval
         );
@@ -87,18 +92,18 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
     function updateSubscription(
         uint256 _subscriptionId,
-        string calldata _newServiceName,
+        string calldata _newName,
         uint256 _newAmount,
         uint256 _newInterval
     ) public {
         Types.Subscription memory subscription = subscriptions[_subscriptionId];
 
-        if (subscription.serviceProvider != msg.sender) {
-            revert SubscriptionManager_OnlyServiceProvider();
+        if (subscription.provider != msg.sender) {
+            revert SubscriptionManager_OnlyProvider();
         }
 
-        if (bytes(_newServiceName).length > 0) {
-            subscriptions[_subscriptionId].serviceName = _newServiceName;
+        if (bytes(_newName).length > 0) {
+            subscriptions[_subscriptionId].name = _newName;
         }
         if (_newAmount > 0) {
             subscriptions[_subscriptionId].amount = _newAmount;
@@ -109,52 +114,26 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         emit SubscriptionUpdated(
             _subscriptionId,
-            subscription.serviceProvider,
-            _newServiceName,
+            subscription.provider,
+            _newName,
             _newAmount,
             _newInterval
         );
     }
 
-    function changeActiveSubscription(uint256 _subscriptionId) public {
-        Types.Subscription memory subscription = subscriptions[_subscriptionId];
-
-        if (subscription.serviceProvider != msg.sender) {
-            revert SubscriptionManager_OnlyServiceProvider();
-        }
-
-        subscriptions[_subscriptionId].active = !subscriptions[_subscriptionId]
-            .active;
-
-        if (subscriptions[_subscriptionId].active) {
-            emit SubscriptionEnabled(_subscriptionId, msg.sender);
-        } else {
-            emit SubscriptionDisabled(_subscriptionId, msg.sender);
-        }
-    }
-
-    // Didn't check for duplicates in case the subscriber has already subscribed to that subscription
     function subscribeSubscription(
         uint256 _subscriptionId,
         string calldata _preferredBlockchain
     ) public payable {
         Types.Subscription memory subscription = subscriptions[_subscriptionId];
 
-        if (!subscription.active) {
-            revert SubscriptionManager_InactiveSubscription();
+        if (subscription.provider == msg.sender) {
+            revert SubscriptionManager_NotProvider();
         }
 
-        if (subscription.serviceProvider == msg.sender) {
-            revert SubscriptionManager_NotServiceProvider();
-        }
-
-        userSubscriptions[msg.sender].push(
-            Types.UserSubscription({
+        subscriberToSubscriptions[msg.sender].push(
+            Types.SubcribedSubscription({
                 subscriptionId: _subscriptionId,
-                serviceProvider: subscription.serviceProvider,
-                serviceName: subscription.serviceName,
-                amount: subscription.amount,
-                interval: subscription.interval,
                 nextPaymentDate: 0
             })
         );
@@ -165,7 +144,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         bytes memory encodedMessage = abi.encode(
             _subscriptionId,
             msg.sender,
-            subscription.serviceProvider,
+            subscription.provider,
             subscription.amount
         );
         _lzSend(
@@ -181,38 +160,64 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         emit PaymentInitiated(
             _subscriptionId,
             msg.sender,
-            subscription.serviceProvider,
+            subscription.provider,
             subscription.amount
         );
 
         emit MessageSent(
             _subscriptionId,
             msg.sender,
-            subscription.serviceProvider,
+            subscription.provider,
             subscription.amount,
             lzBlockchainEIDs[_preferredBlockchain]
         );
+    }
+
+    function unsubscribeSubscription(uint256 _subscriptionId) public {
+        bool found = false;
+
+        uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender]
+            .length;
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            if (
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
+                _subscriptionId
+            ) {
+                found = true;
+                delete subscriberToSubscriptions[msg.sender][i];
+
+                emit SubscriptionUnsubscribed(_subscriptionId, msg.sender);
+
+                break;
+            }
+        }
+
+        if (!found) {
+            revert SubscriptionManager_OnlySubcriber();
+        }
     }
 
     function makePayment(
         uint256 _subscriptionId,
         string calldata _preferredBlockchain
     ) public payable {
-        if (!subscriptions[_subscriptionId].active) {
-            revert SubscriptionManager_InactiveSubscription();
-        }
-
         bool found = false;
 
-        uint256 userSubscriptionLength = userSubscriptions[msg.sender].length;
+        uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender]
+            .length;
 
-        for (uint256 i = 0; i < userSubscriptionLength; i++) {
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
             if (
-                userSubscriptions[msg.sender][i].subscriptionId ==
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
                 _subscriptionId
             ) {
-                Types.UserSubscription
-                    memory userSubscription = userSubscriptions[msg.sender][i];
+                Types.Subscription memory subscription = subscriptions[
+                    _subscriptionId
+                ];
+                Types.SubcribedSubscription
+                    memory userSubscription = subscriberToSubscriptions[
+                        msg.sender
+                    ][i];
 
                 if (userSubscription.nextPaymentDate > block.timestamp) {
                     revert SubscriptionManager_PaymentNotDueYet();
@@ -222,8 +227,8 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                 bytes memory encodedMessage = abi.encode(
                     _subscriptionId,
                     msg.sender,
-                    userSubscription.serviceProvider,
-                    userSubscription.amount
+                    subscription.provider,
+                    subscription.amount
                 );
                 _lzSend(
                     lzBlockchainEIDs[_preferredBlockchain],
@@ -238,15 +243,15 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                 emit PaymentInitiated(
                     _subscriptionId,
                     msg.sender,
-                    userSubscription.serviceProvider,
-                    userSubscription.amount
+                    subscription.provider,
+                    subscription.amount
                 );
 
                 emit MessageSent(
                     _subscriptionId,
                     msg.sender,
-                    userSubscription.serviceProvider,
-                    userSubscription.amount,
+                    subscription.provider,
+                    subscription.amount,
                     lzBlockchainEIDs[_preferredBlockchain]
                 );
 
@@ -259,69 +264,69 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         }
     }
 
-    function unsubscribeSubscription(uint256 _subscriptionId) public {
-        if (!subscriptions[_subscriptionId].active) {
-            revert SubscriptionManager_InactiveSubscription();
-        }
+    function getAllSubscriptions()
+        public
+        view
+        returns (Types.Subscription[] memory allSubscriptions)
+    {
+        allSubscriptions = new Types.Subscription[](subscriptionCounter);
 
-        bool found = false;
-
-        uint256 userSubscriptionLength = userSubscriptions[msg.sender].length;
-        for (uint256 i = 0; i < userSubscriptionLength; i++) {
-            if (
-                userSubscriptions[msg.sender][i].subscriptionId ==
-                _subscriptionId
-            ) {
-                found = true;
-                delete userSubscriptions[msg.sender][i];
-
-                emit SubscriptionUnsubscribed(_subscriptionId, msg.sender);
-
-                break;
-            }
-        }
-
-        if (!found) {
-            revert SubscriptionManager_OnlySubcriber();
+        for (uint256 i = 0; i < subscriptionCounter; i++) {
+            allSubscriptions[i] = subscriptions[i];
         }
     }
 
-    function getUserActiveSubscriptions(
-        address user
+    function getAllSubscriptionsForProvider(
+        address provider
+    ) public view returns (Types.Subscription[] memory allSubscriptions) {
+        uint256 subscriptionsLength = providerToSubscriptions[provider].length;
+
+        allSubscriptions = new Types.Subscription[](subscriptionsLength);
+
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            allSubscriptions[i] = subscriptions[
+                providerToSubscriptions[provider][i]
+            ];
+        }
+    }
+
+    function getAllSubscriptionsForSubscriber(
+        address subscriber
     )
         public
         view
-        returns (Types.UserSubscription[] memory userActiveSubscriptions)
+        returns (Types.DetailSubcribedSubscription[] memory allSubscriptions)
     {
-        uint256 allSubsLength = userSubscriptions[user].length;
-        uint256 activeSubsLength;
+        uint256 subscriptionsLength = subscriberToSubscriptions[subscriber]
+            .length;
 
-        for (uint256 i = 0; i < allSubsLength; i++) {
-            if (
-                subscriptions[userSubscriptions[user][i].subscriptionId]
-                    .active == true
-            ) {
-                activeSubsLength++;
-            }
-        }
-
-        userActiveSubscriptions = new Types.UserSubscription[](
-            activeSubsLength
+        allSubscriptions = new Types.DetailSubcribedSubscription[](
+            subscriptionsLength
         );
 
-        uint256 activeSubIndex;
-        for (uint256 i = 0; i < allSubsLength; i++) {
-            if (
-                subscriptions[userSubscriptions[user][i].subscriptionId]
-                    .active == true
-            ) {
-                userActiveSubscriptions[activeSubIndex] = userSubscriptions[
-                    user
-                ][i];
-                activeSubIndex++;
-            }
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            uint256 subscriptionId = subscriberToSubscriptions[subscriber][i]
+                .subscriptionId;
+            uint nextPaymentDate = subscriberToSubscriptions[subscriber][i]
+                .nextPaymentDate;
+            Types.Subscription memory subscription = subscriptions[
+                subscriptionId
+            ];
+
+            Types.DetailSubcribedSubscription
+                memory detailSubcribedSubscription = Types
+                    .DetailSubcribedSubscription({
+                        subscriptionId: subscriptionId,
+                        provider: subscription.provider,
+                        name: subscription.name,
+                        amount: subscription.amount,
+                        interval: subscription.interval,
+                        nextPaymentDate: nextPaymentDate
+                    });
+
+            allSubscriptions[i] = detailSubcribedSubscription;
         }
-        return userActiveSubscriptions;
+        return allSubscriptions;
     }
 
     function addressToBytes32(address _addr) public pure returns (bytes32) {
@@ -348,7 +353,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         bytes memory payload = abi.encode(
             _subscriptionId,
             _subscriber,
-            subscription.serviceProvider,
+            subscription.provider,
             subscription.amount
         );
         fee = _quote(
@@ -381,14 +386,16 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         Types.Subscription memory subscription = subscriptions[subscriptionId];
 
-        uint256 userSubscriptionLength = userSubscriptions[subscriber].length;
-        for (uint256 i = 0; i < userSubscriptionLength; i++) {
+        uint256 subscriptionsLength = subscriberToSubscriptions[subscriber]
+            .length;
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
             if (
-                userSubscriptions[subscriber][i].subscriptionId ==
+                subscriberToSubscriptions[subscriber][i].subscriptionId ==
                 subscriptionId
             ) {
-                userSubscriptions[subscriber][i].nextPaymentDate += subscription
-                    .interval;
+                subscriberToSubscriptions[subscriber][i]
+                    .nextPaymentDate += subscription.interval;
+                break;
             }
         }
 
@@ -403,7 +410,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         emit PaymentFinished(
             subscriptionId,
             subscriber,
-            subscription.serviceProvider,
+            subscription.provider,
             subscription.amount
         );
     }
