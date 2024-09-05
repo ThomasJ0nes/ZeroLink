@@ -2,16 +2,12 @@
 pragma solidity 0.8.24;
 
 library Types {
-    enum Blockchain {
-        BaseSepolia,
-        OptimismSepolia
-    }
-
     struct Subscription {
         address serviceProvider;
         string serviceName;
         uint256 amount;
         uint256 interval;
+        bool active;
     }
 
     struct UserSubscription {

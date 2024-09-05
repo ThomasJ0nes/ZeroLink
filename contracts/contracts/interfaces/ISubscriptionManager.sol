@@ -6,40 +6,71 @@ import {Types} from "../libraries/Types.sol";
 interface ISubscriptionManager {
     event SubscriptionCreated(
         uint256 indexed subscriptionId,
-        address serviceProvider,
+        address indexed serviceProvider,
         string serviceName,
         uint256 amount,
         uint256 interval
     );
+    event SubscriptionUpdated(
+        uint256 indexed subscriptionId,
+        address indexed serviceProvider,
+        string newServiceName,
+        uint256 newAmount,
+        uint256 newInterval
+    );
+    event SubscriptionEnabled(
+        uint256 indexed subscriptionId,
+        address indexed serviceProvider
+    );
+    event SubscriptionDisabled(
+        uint256 indexed subscriptionId,
+        address indexed serviceProvider
+    );
+
+    event SubscriptionSubscribed(
+        uint256 indexed subscriptionId,
+        address indexed subscriber
+    );
+    event SubscriptionUnsubscribed(
+        uint256 indexed subscriptionId,
+        address indexed subscriber
+    );
+
     event PaymentInitiated(
         uint256 indexed subscriptionId,
-        address user,
-        address serviceProviderAddress,
+        address indexed subscriber,
+        address indexed serviceProvider,
         uint256 amount
     );
     event PaymentFinished(
         uint256 indexed subscriptionId,
-        address user,
-        address serviceProviderAddress,
+        address indexed subscriber,
+        address indexed serviceProvider,
         uint256 amount
     );
-    event SubscriptionCanceled(uint256 indexed subscriptionId);
+
     event MessageSent(
-        uint256 subscriptionId,
-        address user,
-        address serviceProviderAddress,
+        uint256 indexed subscriptionId,
+        address indexed subscriber,
+        address indexed serviceProvider,
         uint256 amount,
         uint32 dstEid
     );
     event MessageReceived(
-        uint256 subscriptionId,
+        uint256 indexed subscriptionId,
+        address indexed subscriber,
         uint32 senderEid,
         bytes32 sender,
         uint64 nonce
     );
 
-    error SubscriptionManager_LowAmount();
-    error SubscriptionManager_LowInterval();
+    error SubscriptionManager_EmptyString();
+    error SubscriptionManager_ZeroAmount();
+    error SubscriptionManager_ZeroInterval();
+    error SubscriptionManager_OnlyServiceProvider();
+    error SubscriptionManager_NotServiceProvider();
     error SubscriptionManager_OnlySubcriber();
+    error SubscriptionManager_ActiveSubscription();
+    error SubscriptionManager_InactiveSubscription();
     error SubscriptionManager_PaymentNotDueYet();
 }
