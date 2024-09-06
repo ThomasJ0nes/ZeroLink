@@ -1,11 +1,11 @@
 import { useWeb3Auth } from "@/context/Web3AuthContext";
 import { Contract, ethers } from "ethers";
 import SubscriptionManagerABI from "../../contracts/ignition/deployments/chain-11155111/artifacts/SubscriptionManagerModule#SubscriptionManager.json";
-import PaymentProcessorABI from "../../contracts/ignition/deployments/chain-84532/artifacts/PaymentProcessorModule#PaymentProcessor.json";
+import OptimismPaymentProcessorABI from "../../contracts/ignition/deployments/chain-84532/artifacts/PaymentProcessorModule#PaymentProcessor.json";
 
 // Contract addresses
-const SUBSCRIPTION_MANAGER_ADDRESS = '0x52a09DA09a777086a7F5F58cC6E9c32cA793a604';
-const PAYMENT_PROCESSOR_ADDRESS = '0x6dFCe89dA39C302e8C92d7DEFC6f3fAce5fF497d';
+const SUBSCRIPTION_MANAGER_ADDRESS = '0x6fAdcb29EC4831b4982BE5dA30191a6B0B1E3015';
+const OPTIMISM_PAYMENT_PROCESSOR_ADDRESS = '0xa9A5d49510dF9E9df1ccEC4d1dE647344166d120';
 
 export const useContracts = () => {
   const { provider, loggedIn, userAddress } = useWeb3Auth(); // Access provider and login status from context
@@ -27,7 +27,7 @@ export const useContracts = () => {
 
   const getPaymentProcessorContract = async () => {
     const { signer } = await initializeEthers(); // Use async initialization to ensure signer is ready
-    return new Contract(PAYMENT_PROCESSOR_ADDRESS, PaymentProcessorABI.abi, signer);
+    return new Contract(OPTIMISM_PAYMENT_PROCESSOR_ADDRESS, OptimismPaymentProcessorABI.abi, signer);
   };
 
 
@@ -131,23 +131,30 @@ const fetchPaymentHistory = async () => {
   for (let i = 0; i < logs.length; i++) {
     // Get the date of this payment
     const block = await ethersProvider.getBlock(logs[i].blockNumber);
-    const eventDate = new Date(block.timestamp * 1000);
+    if (block) {  // Check if block is not null
+      const eventDate = new Date(block.timestamp * 1000);
 
-    if(userAddress === logs[i]?.args[1]){
-      payments.push({
-        id: i,
-        date: eventDate,
-        service: "Netflix",
-        amount: ethers.formatUnits(logs[i]?.args[3], "ether"),
-        blockchain: "Ethereum",
-        status: "Completed",
-        hash: logs[i].transactionHash
-      });
+      // Check if this log is an EventLog by checking if it has 'args' property
+      if ('args' in logs[i]) {
+        const eventLog = logs[i] as ethers.EventLog; // Explicitly cast to EventLog
+        if (userAddress === eventLog.args[1]) {
+          payments.push({
+            id: i,
+            date: eventDate,
+            service: "Netflix",
+            amount: ethers.formatUnits(eventLog.args[3], "ether"),
+            blockchain: "Ethereum",
+            status: "Completed",
+            hash: logs[i].transactionHash
+          });
+        }
+      }
     }
-   
-    return payments;
   }
-}
+
+  return payments;
+};
+
 
   return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchSubscriptionsByUser, fetchPaymentHistory };
 };
