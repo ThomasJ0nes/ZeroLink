@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Logo from "@/public/zeroLinkLogo.png";
 import Image from "next/image";
-import { useWeb3Auth } from "@/context/Web3AuthContext"; // Import useWeb3Auth
+import { useWeb3Auth } from "@/context/Web3AuthContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user } = useWeb3Auth(); // Get user from context
+  const { user } = useWeb3Auth();
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
