@@ -15,6 +15,7 @@ const deployerPrivateKey =
 const etherscanApiKey = process.env.ETHERSCAN_API_KEY || "DNXJA8RX2Q3VZ4URQIWP7Z68CJXQZSC6AW"; // Scaffold-ETH
 const opscanApiKey = process.env.OPSCAN_API_KEY || "";
 const basescanApiKey = process.env.BASESCAN_API_KEY || "";
+const polygonscanApiKey = process.env.POLYGONSCAN_API_KEY || "";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -62,7 +63,14 @@ const config: HardhatUserConfig = {
       url: "https://sepolia.base.org",
       accounts: [deployerPrivateKey],
     },
-  
+    polygonAmoy: {
+      url: "https://rpc-amoy.polygon.technology",
+      accounts: [deployerPrivateKey],
+    },
+    fuji: {
+      url: "https://api.avax-test.network/ext/bc/C/rpc",
+      accounts: [deployerPrivateKey],
+    },
   },
   etherscan: {
     apiKey: {
@@ -72,9 +80,11 @@ const config: HardhatUserConfig = {
       // Optimism
       optimisticEthereum: opscanApiKey,
       optimismSepolia: opscanApiKey,
-      // Base:
+      // Base
       base: basescanApiKey,
       baseSepolia: basescanApiKey,
+      // Polygon
+      polygonAmoy: polygonscanApiKey,
     },
     customChains: [
       {
@@ -91,6 +101,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-sepolia.basescan.org/api",
           browserURL: "https://sepolia.basescan.org/",
+        },
+      },
+      {
+        network: "polygonAmoy",
+        chainId: 80002,
+        urls: {
+          apiURL: "https://api-amoy.polygonscan.com/api",
+          browserURL: "https://amoy.polygonscan.com/",
         },
       },
     ],
