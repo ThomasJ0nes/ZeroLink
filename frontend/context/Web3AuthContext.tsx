@@ -7,7 +7,7 @@ import { Web3Auth } from "@web3auth/modal";
 import { ethers } from "ethers";
 
 const clientId =
-  "BES8NKuLsgCGtmYytKcQcWlv8g2BlRl8ABWBcbljuB1nX5qE_gSie03KIZNpfHf9_YmVv4zpoJznpc6LGq_6lgY";
+    "BES8NKuLsgCGtmYytKcQcWlv8g2BlRl8ABWBcbljuB1nX5qE_gSie03KIZNpfHf9_YmVv4zpoJznpc6LGq_6lgY";
 
 const chainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
@@ -34,13 +34,14 @@ interface IWeb3AuthContext {
   logout: () => Promise<void>;
   getUserInfo: () => Promise<void>;
   getBalance: () => Promise<string | null>;
+  checkAuthStatus: () => Promise<boolean>;
 }
 
 const Web3AuthContext = createContext<IWeb3AuthContext | null>(null);
 
 export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+                                                                            children,
+                                                                          }) => {
   const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -59,12 +60,16 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         await web3authInstance.initModal();
         setWeb3auth(web3authInstance);
-        setInitializing(false);
 
         if (web3authInstance.provider) {
           setProvider(web3authInstance.provider);
+          const user = await web3authInstance.getUserInfo();
+          setUser(user);
           setLoggedIn(true);
+          await getUserInfo();
         }
+
+        setInitializing(false);
       } catch (error) {
         console.error("Failed to initialize Web3Auth", error);
         setInitializing(false);
@@ -73,6 +78,17 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     init();
   }, []);
+
+  const checkAuthStatus = async (): Promise<boolean> => {
+    if (web3auth && web3auth.connected) {
+      const user = await web3auth.getUserInfo();
+      setUser(user);
+      setLoggedIn(true);
+      await getUserInfo();
+      return true;
+    }
+    return false;
+  };
 
   const login = async () => {
     if (web3auth) {
@@ -104,7 +120,7 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     if (web3auth) {
       try {
         await web3auth.logout();
@@ -149,12 +165,13 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     logout,
     getUserInfo,
     getBalance,
+    checkAuthStatus,
   };
 
   return (
-    <Web3AuthContext.Provider value={value}>
-      {children}
-    </Web3AuthContext.Provider>
+      <Web3AuthContext.Provider value={value}>
+        {children}
+      </Web3AuthContext.Provider>
   );
 };
 
