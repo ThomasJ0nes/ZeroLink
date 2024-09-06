@@ -22,7 +22,9 @@ export default function Home() {
                 <Link href="/auth" passHref>
                   <Button>Sign Up</Button>
                 </Link>
-                <Button variant="outline">Subscriptions</Button>
+                <Link href="/subscriptions" passHref>
+                  <Button variant="outline">Subscriptions</Button>
+                </Link>
               </div>
             </div>
           </div>

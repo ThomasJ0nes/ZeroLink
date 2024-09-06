@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+import { useRouter } from "next/navigation";
 import { useContracts } from "@/util/useContracts";
 import { useWeb3Auth } from "@/context/Web3AuthContext";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ const blockchainOptions = {
 };
 
 const CreateSubscription: React.FC = () => {
-  const { initializing, loggedIn, login, provider } = useWeb3Auth();
+  const { initializing, loggedIn, login, provider, checkAuthStatus } = useWeb3Auth();
   const [serviceProviderName, setServiceProviderName] = useState<string>("");
   const [serviceProviderAddress, setServiceProviderAddress] =
     useState<string>("");
@@ -44,6 +45,22 @@ const CreateSubscription: React.FC = () => {
     blockchainOptions.BaseSepolia
   );
   const { getSubscriptionManagerContract } = useContracts();
+
+  const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!initializing) {
+        const isAuthenticated = await checkAuthStatus();
+        if (!isAuthenticated) {
+          router.push("/auth?authRequired=true");
+        }
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, [checkAuthStatus, initializing, router]);
+
 
   const calculateSeconds = () => {
     const value = parseInt(intervalValue);
@@ -117,6 +134,15 @@ const CreateSubscription: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (initializing || isCheckingAuth) {
+    return (
+        <p>
+          Loading page...{" "}
+          <Loader className="ml-2 h-5 w-5 inline animate-spin" />
+        </p>
+    );
+  }
 
   return (
     <>
