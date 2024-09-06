@@ -24,67 +24,64 @@ contract PaymentProcessor is
 
     uint32 public constant SEPOLIA_EID = 40161;
 
-    bytes _options =
+    bytes lzOptions =
         OptionsBuilder.newOptions().addExecutorLzReceiveOption(1000000, 0);
 
     uint64 public constant SEPOLIA_CHAIN_SELECTOR = 16015286601757825753;
+    IRouterClient public router;
+    address public usdcToken;
 
-    IRouterClient public s_router;
-    address public s_usdcToken;
-
-    modifier validateReceiver(address _receiver) {
-        if (_receiver == address(0))
-            revert PaymentProcessor_InvalidReceiverAddress();
-        _;
-    }
-
-    /// @notice Constructor initializes the contract with the router address.
-    /// @param _router The address of the router contract.
+    /**
+     * @notice Initializes the OApp with the source chain's endpoint address.
+     * @param _endpoint The endpoint address from LayerZero
+     * @param _router The router address from ChainLink CCIP
+     * @param _usdcToken The usdc address from ChainLink CCIP
+     */
     constructor(
         address _endpoint,
         address _router,
-        address _usdc
-    ) OAppCore(_endpoint, /*owner*/ msg.sender) Ownable(msg.sender) {
-        s_router = IRouterClient(_router);
-        s_usdcToken = _usdc;
+        address _usdcToken
+    ) OAppCore(_endpoint, msg.sender) Ownable(msg.sender) {
+        router = IRouterClient(_router);
+        usdcToken = _usdcToken;
     }
 
     receive() external payable {}
 
     function checkLog(
-        Log calldata log,
+        Log calldata _log,
         bytes memory
     ) external pure returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = true;
-        performData = log.data;
+        performData = _log.data;
     }
 
-    function performUpkeep(bytes calldata performData) external override {
+    function performUpkeep(bytes calldata _performData) external override {
         (
             uint256 subscriptionId,
-            address user,
-            address serviceProviderAddress,
+            address subscriber,
+            address provider,
             uint256 amount,
             ,
             ,
 
         ) = abi.decode(
-                performData,
+                _performData,
                 (uint256, address, address, uint256, uint32, bytes32, uint64)
             );
 
-        if (IERC20(s_usdcToken).allowance(user, address(this)) < amount) {
+        if (IERC20(usdcToken).allowance(subscriber, address(this)) != amount) {
             revert PaymentProcessor_NotApprovedToTransferUSDCToken();
         }
-        IERC20(s_usdcToken).safeTransferFrom(user, address(this), amount);
-        _transferTokensPayNative(serviceProviderAddress, amount);
+        IERC20(usdcToken).safeTransferFrom(subscriber, address(this), amount);
+        _transferTokensPayNative(provider, amount);
 
         // Prepare the payload and send it to the target chain
-        bytes memory encodedMessage = abi.encode(subscriptionId);
+        bytes memory encodedMessage = abi.encode(subscriptionId, subscriber);
         MessagingFee memory messagingFee = _quote(
             SEPOLIA_EID,
             encodedMessage,
-            _options,
+            lzOptions,
             false
         );
         if (messagingFee.nativeFee > address(this).balance)
@@ -97,17 +94,17 @@ contract PaymentProcessor is
                 SEPOLIA_EID,
                 _getPeerOrRevert(SEPOLIA_EID),
                 encodedMessage,
-                _options,
+                lzOptions,
                 false
             ),
             address(this)
         );
 
-        emit MessageSent(subscriptionId, SEPOLIA_EID);
+        emit MessageSent(subscriptionId, subscriber, SEPOLIA_EID);
     }
 
-    function setOptions(uint128 _gas) public onlyOwner {
-        _options = OptionsBuilder.newOptions().addExecutorLzReceiveOption(
+    function setLzOptions(uint128 _gas) public onlyOwner {
+        lzOptions = OptionsBuilder.newOptions().addExecutorLzReceiveOption(
             _gas,
             0
         );
@@ -126,16 +123,6 @@ contract PaymentProcessor is
             );
     }
 
-    function withdrawToken(
-        address _beneficiary,
-        address _token
-    ) public onlyOwner {
-        uint256 amount = IERC20(_token).balanceOf(address(this));
-        if (amount == 0) revert PaymentProcessor_NothingToWithdraw();
-
-        IERC20(_token).safeTransfer(_beneficiary, amount);
-    }
-
     function addressToBytes32(address _addr) public pure returns (bytes32) {
         return bytes32(uint256(uint160(_addr)));
     }
@@ -149,28 +136,28 @@ contract PaymentProcessor is
      * Protocol messages are defined as packets, comprised of the following parameters.
      * @param _origin A struct containing information about where the packet came from.
      * _guid A global unique identifier for tracking the packet.
-     * @param message Encoded message.
+     * @param _message Encoded message.
      */
     function _lzReceive(
         Origin calldata _origin,
-        bytes32 /*_guid*/,
-        bytes calldata message,
-        address /*executor*/, // Executor address as specified by the OApp.
-        bytes calldata /*_extraData*/ // Any extra data or options to trigger on receipt.
+        bytes32 /*guid_*/,
+        bytes calldata _message,
+        address /*executor_*/, // Executor address as specified by the OApp.
+        bytes calldata /*extraData_*/ // Any extra data or options to trigger on receipt.
     ) internal override {
         // Decode the payload to get the message
         (
             uint256 subscriptionId,
-            address user,
-            address serviceProviderAddress,
+            address subscriber,
+            address provider,
             uint256 amount
-        ) = abi.decode(message, (uint256, address, address, uint256));
+        ) = abi.decode(_message, (uint256, address, address, uint256));
 
         // Emit the event with the decoded message and sender's EID
         emit MessageReceived(
             subscriptionId,
-            user,
-            serviceProviderAddress,
+            subscriber,
+            provider,
             amount,
             _origin.srcEid,
             _origin.sender,
@@ -179,23 +166,19 @@ contract PaymentProcessor is
     }
 
     function _transferTokensPayNative(
-        address serviceProviderAddress,
-        uint256 amount
-    )
-        internal
-        validateReceiver(serviceProviderAddress)
-        returns (bytes32 messageId)
-    {
+        address _provider,
+        uint256 _amount
+    ) internal returns (bytes32 messageId) {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         // address(0) means fees are paid in native gas
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(
-            serviceProviderAddress,
-            amount,
+            _provider,
+            _amount,
             address(0)
         );
 
         // Get the fee required to send the message
-        uint256 fees = s_router.getFee(SEPOLIA_CHAIN_SELECTOR, evm2AnyMessage);
+        uint256 fees = router.getFee(SEPOLIA_CHAIN_SELECTOR, evm2AnyMessage);
 
         if (fees > address(this).balance)
             revert PaymentProcessor_NotEnoughBalanceToTransferTokens(
@@ -204,10 +187,10 @@ contract PaymentProcessor is
             );
 
         // approve the Router to spend tokens on contract's behalf. It will spend the amount of the given token
-        IERC20(s_usdcToken).approve(address(s_router), amount);
+        IERC20(usdcToken).approve(address(router), _amount);
 
         // Send the message through the router and store the returned message ID
-        messageId = s_router.ccipSend{value: fees}(
+        messageId = router.ccipSend{value: fees}(
             SEPOLIA_CHAIN_SELECTOR,
             evm2AnyMessage
         );
@@ -216,9 +199,9 @@ contract PaymentProcessor is
         emit TokensTransferred(
             messageId,
             SEPOLIA_CHAIN_SELECTOR,
-            serviceProviderAddress,
-            s_usdcToken,
-            amount,
+            _provider,
+            usdcToken,
+            _amount,
             address(0),
             fees
         );
@@ -242,7 +225,7 @@ contract PaymentProcessor is
         Client.EVMTokenAmount[]
             memory tokenAmounts = new Client.EVMTokenAmount[](1);
         tokenAmounts[0] = Client.EVMTokenAmount({
-            token: s_usdcToken,
+            token: usdcToken,
             amount: _amount
         });
 

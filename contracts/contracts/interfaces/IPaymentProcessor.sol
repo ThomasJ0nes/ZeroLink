@@ -2,6 +2,20 @@
 pragma solidity 0.8.24;
 
 interface IPaymentProcessor {
+    event MessageSent(
+        uint256 indexed subscriptionId,
+        address indexed provider,
+        uint32 dstEid
+    );
+    event MessageReceived(
+        uint256 indexed subscriptionId,
+        address indexed subscriber,
+        address indexed provider,
+        uint256 amount,
+        uint32 senderEid,
+        bytes32 sender,
+        uint64 nonce
+    );
     event TokensTransferred(
         bytes32 indexed messageId,
         uint64 indexed destinationChainSelector,
@@ -10,16 +24,6 @@ interface IPaymentProcessor {
         uint256 tokenAmount,
         address feeToken,
         uint256 fees
-    );
-    event MessageSent(uint256 subscriptionId, uint32 dstEid);
-    event MessageReceived(
-        uint256 subscriptionId,
-        address user,
-        address serviceProviderAddress,
-        uint256 amount,
-        uint32 senderEid,
-        bytes32 sender,
-        uint64 nonce
     );
 
     error PaymentProcessor_NotApprovedToTransferUSDCToken();
