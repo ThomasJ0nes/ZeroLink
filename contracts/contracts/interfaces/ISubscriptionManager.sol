@@ -5,52 +5,46 @@ import {Types} from "../libraries/Types.sol";
 
 interface ISubscriptionManager {
     event SubscriptionCreated(
-        uint256 indexed subscriptionId,
-        address indexed provider,
+        uint256 subscriptionId,
+        address provider,
         string name,
         uint256 amount,
         uint256 interval
     );
     event SubscriptionUpdated(
-        uint256 indexed subscriptionId,
-        address indexed provider,
+        uint256 subscriptionId,
+        address provider,
         string newName,
         uint256 newAmount,
         uint256 newInterval
     );
 
-    event SubscriptionSubscribed(
-        uint256 indexed subscriptionId,
-        address indexed subscriber
-    );
-    event SubscriptionUnsubscribed(
-        uint256 indexed subscriptionId,
-        address indexed subscriber
-    );
+    event SubscriptionSubscribed(uint256 subscriptionId, address subscriber);
+    event SubscriptionUnsubscribed(uint256 subscriptionId, address subscriber);
 
     event PaymentInitiated(
-        uint256 indexed subscriptionId,
-        address indexed subscriber,
-        address indexed provider,
+        uint256 subscriptionId,
+        address subscriber,
+        address provider,
         uint256 amount
     );
     event PaymentFinished(
-        uint256 indexed subscriptionId,
-        address indexed subscriber,
-        address indexed provider,
+        uint256 subscriptionId,
+        address subscriber,
+        address provider,
         uint256 amount
     );
 
     event MessageSent(
-        uint256 indexed subscriptionId,
-        address indexed subscriber,
-        address indexed provider,
+        uint256 subscriptionId,
+        address subscriber,
+        address provider,
         uint256 amount,
         uint32 dstEid
     );
     event MessageReceived(
-        uint256 indexed subscriptionId,
-        address indexed subscriber,
+        uint256 subscriptionId,
+        address subscriber,
         uint32 senderEid,
         bytes32 sender,
         uint64 nonce
