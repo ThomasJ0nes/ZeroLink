@@ -32,7 +32,8 @@ const blockchainOptions = {
 };
 
 const CreateSubscription: React.FC = () => {
-  const { initializing, loggedIn, login, provider, checkAuthStatus } = useWeb3Auth();
+  const { initializing, loggedIn, login, provider, checkAuthStatus } =
+    useWeb3Auth();
   const [serviceProviderName, setServiceProviderName] = useState<string>("");
   const [serviceProviderAddress, setServiceProviderAddress] =
     useState<string>("");
@@ -60,7 +61,6 @@ const CreateSubscription: React.FC = () => {
     };
     checkAuth();
   }, [checkAuthStatus, initializing, router]);
-
 
   const calculateSeconds = () => {
     const value = parseInt(intervalValue);
@@ -111,18 +111,38 @@ const CreateSubscription: React.FC = () => {
       return;
     }
 
+    // Validate inputs
+    if (!serviceProviderName.trim()) {
+      alert("Service provider name cannot be empty.");
+      return;
+    }
+
+    if (
+      !ethAmount ||
+      isNaN(parseFloat(ethAmount)) ||
+      parseFloat(ethAmount) <= 0
+    ) {
+      alert("Please enter a valid ETH amount.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const contract = await getSubscriptionManagerContract();
 
-      // Correctly format and pass the arguments to match Solidity's function signature
+      const amountInWei = ethers.parseUnits(ethAmount.toString(), "ether");
+      const intervalInSeconds = calculateSeconds();
+
+      console.log("Creating subscription with values:");
+      console.log("Service Provider Name:", serviceProviderName);
+      console.log("Amount in Wei:", amountInWei.toString());
+      console.log("Interval in Seconds:", intervalInSeconds);
+
       const tx = await contract.createSubscription(
-        serviceProviderName, // Argument 1: serviceProviderName (string)
-        serviceProviderAddress, // Argument 2: serviceProviderAddress (address)
-        ethers.parseUnits(ethAmount, "ether"), // Argument 3: amount (uint256), converted to Wei
-        calculateSeconds(), // Argument 4: interval (uint256)
-        preferredBlockchain // Argument 5: preferredBlockchain (enum, passed as an integer)
+        serviceProviderName.trim(),
+        amountInWei,
+        intervalInSeconds
       );
 
       await tx.wait();
@@ -137,10 +157,9 @@ const CreateSubscription: React.FC = () => {
 
   if (initializing || isCheckingAuth) {
     return (
-        <p>
-          Loading page...{" "}
-          <Loader className="ml-2 h-5 w-5 inline animate-spin" />
-        </p>
+      <p>
+        Loading page... <Loader className="ml-2 h-5 w-5 inline animate-spin" />
+      </p>
     );
   }
 
@@ -171,21 +190,7 @@ const CreateSubscription: React.FC = () => {
                     onChange={(e) => setServiceProviderName(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Service Provider Address</Label>
-                  <div className="relative">
-                    <Wallet className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="address"
-                      placeholder="Enter recipient address"
-                      value={serviceProviderAddress}
-                      onChange={(e) =>
-                        setServiceProviderAddress(e.target.value)
-                      }
-                      className="pl-8"
-                    />
-                  </div>
-                </div>
+
                 <div className="space-y-2">
                   <Label>Payment Interval</Label>
                   <RadioGroup
@@ -259,33 +264,6 @@ const CreateSubscription: React.FC = () => {
                       className="pl-8"
                     />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="blockchain">
-                    Preferred Payment Blockchain
-                  </Label>
-                  <Select
-                    value={preferredBlockchain.toString()}
-                    onValueChange={(value) =>
-                      setPreferredBlockchain(Number(value))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        value={blockchainOptions.BaseSepolia.toString()}
-                      >
-                        BaseSepolia
-                      </SelectItem>
-                      <SelectItem
-                        value={blockchainOptions.OP_Sepolia.toString()}
-                      >
-                        OP_Sepolia
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </>
             )}
