@@ -6,6 +6,8 @@ import { Menu } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import Logo from "@/public/zeroLinkLogo.png";
+import Image from "next/image";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,6 +43,7 @@ export default function Navbar() {
         <div className="flex flex-1 items-center justify-between md:justify-start">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
+            <img className="h-8 w-8" src="/zeroLinkLogo.png" />
             <span className="font-bold">ZeroLink</span>
           </Link>
 
@@ -62,6 +65,7 @@ export default function Navbar() {
                 className="flex items-center"
                 onClick={() => setIsOpen(false)}
               >
+                <img className="h-8 w-8 mr-2" src="/zeroLinkLogo.png" />
                 <span className="font-bold">ZeroLink</span>
               </Link>
               <nav className="flex flex-col space-y-4 mt-4">
@@ -80,7 +84,9 @@ export default function Navbar() {
 
         {/* Sign Up button */}
         <div className="flex-1 flex justify-end">
-          <Button size="sm">Sign Up</Button>
+          <Button size="sm">
+            <Link href="/auth">Sign Up</Link>
+          </Button>
         </div>
       </div>
     </header>

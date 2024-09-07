@@ -208,8 +208,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         for (uint256 i = 0; i < subscriptionsLength; i++) {
             if (
-                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
-                _subscriptionId
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==_subscriptionId
             ) {
                 Types.Subscription memory subscription = subscriptions[
                     _subscriptionId

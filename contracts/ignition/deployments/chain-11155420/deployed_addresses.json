@@ -1,3 +1,7 @@
 {
+<<<<<<< HEAD
   "PaymentProcessorModule#PaymentProcessor": "0xe4Bb30189ad42E76C7AB41d5921D500b2d723cBD"
+=======
+  "PaymentProcessorModule#PaymentProcessor": "0xB4e16C7491E9Cb0b4504Ee6ACfF0C28d2A32a22b"
+>>>>>>> origin/contracts
 }
