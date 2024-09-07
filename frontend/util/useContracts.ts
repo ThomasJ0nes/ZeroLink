@@ -3,8 +3,14 @@ import { Contract, ethers, AbiCoder, ZeroAddress  } from "ethers";
 import SubscriptionManagerABI from "../../contracts/ignition/deployments/chain-11155111/artifacts/SubscriptionManagerModule#SubscriptionManager.json";
 import OptimismPaymentProcessorABI from "../../contracts/ignition/deployments/chain-84532/artifacts/PaymentProcessorModule#PaymentProcessor.json";
 
+
+const IERC20_ABI = [
+  // Approve function for ERC20 tokens
+  "function approve(address spender, uint256 amount) public returns (bool)"
+];
+
 // Contract addresses
-const SUBSCRIPTION_MANAGER_ADDRESS = '0x6fAdcb29EC4831b4982BE5dA30191a6B0B1E3015';
+const SUBSCRIPTION_MANAGER_ADDRESS = '0xCd1C892121Bd5b7228e6190C4e272d5BeaEa26AB';
 const OPTIMISM_PAYMENT_PROCESSOR_ADDRESS = '0xa9A5d49510dF9E9df1ccEC4d1dE647344166d120';
 
 export const useContracts = () => {
@@ -156,64 +162,98 @@ const fetchPaymentHistory = async () => {
 };
 
 
-// New function to handle subscription process
-
-const subscribeToSubscription = async (
-  subscriptionId: number,
-  priceInUSDC: string, // Expect the price in USDC
-  selectedChain: string
-) => {
+ // function to handle subscription process
+ const subscribeToSubscription = async (selectedChain: string) => {
   try {
-    // Switch to the appropriate network (Optimism Sepolia)
+    const subscriptionId = 0; // Hard-coded subscription ID
+    const priceInWei = BigInt(91494101047981); // Hard-coded price in wei format
+    const hardCodeUserAddress = '0xc84C26376fdAB17f463d022744013FADe75423B8'
+    const hardCodeUsdcTokenAddress = '0x5fd84259d66Cd46123540766Be93DFE6D43130D7'
+    const contractPaymentAddress = '0xa9A5d49510dF9E9df1ccEC4d1dE647344166d120'
+    console.log('Hardcoded Price in Wei (USDC smallest unit):', priceInWei.toString());
+
+    // Switch to the appropriate network
     if (selectedChain === "optimismSepolia") {
       await switchNetwork("0xaa37dc"); // Optimism Sepolia chain ID
     }
 
-    // Get the payment processor and subscription manager contracts
-    const paymentProcessorContract = await getPaymentProcessorContract();
-    const subscriptionManagerContract = await getSubscriptionManagerContract(); 
+    const paymentProcessorContract = contractPaymentAddress;
+    const subscriptionManagerContract = await getSubscriptionManagerContract();
 
-    // Fetch subscription details to get the provider's address
-    const subscriptionDetails = await subscriptionManagerContract.subscriptions(subscriptionId);
-    const providerAddress = subscriptionDetails.provider; // Assuming provider is part of the subscription details
+    // Check the total number of subscriptions
+    //const subscriptionCount = await subscriptionManagerContract.subscriptionCounter();
+    //console.log(`Total Subscriptions Available: ${subscriptionCount}`);
 
-    // Ensure subscriptionDetails has valid data
-    if (!providerAddress || providerAddress === ZeroAddress) { // Use `ZeroAddress` in ethers v6
-      throw new Error(`Invalid provider for subscription ID: ${subscriptionId}`);
-    }
+    // Fetch subscription details
+    //const subscriptionDetails = await subscriptionManagerContract.subscriptions(subscriptionId);
+   // console.log('Subscription Details:', subscriptionDetails);
 
-    // Parse the price in USDC to the correct format
-    const price = ethers.parseUnits(priceInUSDC, 6); // Assuming USDC has 6 decimals
+    //if (!subscriptionDetails || subscriptionDetails.provider === ZeroAddress) {
+    //  throw new Error(`No subscription found for ID: ${subscriptionId}`);
+   // }
 
-    // Use AbiCoder directly in ethers.js v6
-    const abiCoder = new AbiCoder();
-
-    // Call the contract's `performUpkeep` method with encoded arguments
-    const tx = await paymentProcessorContract.performUpkeep(
-      abiCoder.encode(
-        ['uint256', 'address', 'address', 'uint256', 'uint32', 'bytes32', 'uint64'], // The arguments to decode
-        [
-          subscriptionId,
-          userAddress,
-          providerAddress, // Dynamically fetched provider's address
-          price,
-          0,
-          "0x0000000000000000000000000000000000000000000000000000000000000000", // 32-byte zero value
-          0
-        ]
-      )
+    // Get LayerZero fee for the transaction
+    const feeData = await subscriptionManagerContract.quote(
+      subscriptionId,
+      hardCodeUserAddress,
+      "optimismSepolia"
     );
-    
-    console.log('Subscription Details:', subscriptionDetails);
-    await tx.wait();
+    const layerZeroFee = feeData.nativeFee;
+    console.log('LayerZero fee:', layerZeroFee);
 
-    console.log("Subscription successful", tx);
-    return { success: true, tx };
-  } catch (error) {
-    console.error("Subscription failed:", error);
-    throw error; // Rethrow error to handle it in the component
+    // Fetch USDC token address and check if it is valid
+    const usdcTokenAddress = hardCodeUsdcTokenAddress;
+   // if (!usdcTokenAddress || usdcTokenAddress === ethers.constants.AddressZero) {
+   //   throw new Error(`Invalid USDC token address: ${usdcTokenAddress}`);
+  //  }
+    console.log('USDC Token Address:', usdcTokenAddress);
+
+    // Check if payment processor contract address is valid
+   // const paymentProcessorAddress = paymentProcessorContract.address;
+   // if (!paymentProcessorAddress || paymentProcessorAddress === ethers.constants.AddressZero) {
+    //  throw new Error(`Invalid Payment Processor address: ${paymentProcessorAddress}`);
+   // }
+    console.log('Payment Processor Address:', paymentProcessorContract);
+
+    // Fetch USDC token contract and approve spending
+    const usdcTokenContract = new ethers.Contract(
+      usdcTokenAddress,
+      IERC20_ABI,
+      await getSigner() 
+    );
+
+    const approvalTx = await usdcTokenContract.approve(
+      paymentProcessorContract, // Use the valid payment processor address here
+      priceInWei // Use hardcoded wei value here
+    );
+    await approvalTx.wait();
+    console.log('USDC approval successful:', approvalTx.hash);
+
+    // Call subscribeSubscription with LayerZero fee
+    const subscribeTx = await subscriptionManagerContract.subscribeSubscription(
+      subscriptionId,
+      "optimismSepolia",
+      {
+        value: layerZeroFee, // Pass the LayerZero fee as msg.value
+      }
+    );
+    await subscribeTx.wait();
+
+    console.log("Subscription successful", subscribeTx);
+    return { success: true, tx: subscribeTx };
+  } catch (error: any) {
+    console.error("Subscription failed:", error.message);
+    throw error;
   }
 };
+
+
+const getSigner = async () => {
+  const {signer} = await initializeEthers()
+  return signer;
+}
+
+
 
 
 
