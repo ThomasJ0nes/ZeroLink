@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,7 +29,10 @@ import { BNB, Ethereum, Polygon } from "@/public/icons/Icons";
 import { useContracts } from "@/util/useContracts"; // Import the updated hook
 import { useWeb3Auth } from "@/context/Web3AuthContext"; // Import to check wallet connection
 import { Loader } from "lucide-react";
+import NetworkSwitcherDropdown from "@/components/switchNetwork";
+import { ethers } from "ethers";
 
+// Define the type for a Subscription
 type Subscription = {
   id: number;
   user: string;
@@ -47,8 +50,9 @@ type Subscription = {
 };
 
 export default function Component() {
-  const { fetchAllSubscriptions } = useContracts();
-  const { provider, loggedIn, login, initializing } = useWeb3Auth(); // Access provider and login status
+  const { fetchAllSubscriptions, getPaymentProcessorContract } = useContracts(); // Updated to include getPaymentProcessorContract
+  const { provider, loggedIn, login, initializing, switchNetwork, getBalance } =
+    useWeb3Auth(); // Access provider and login status
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [selectedSubscription, setSelectedSubscription] =
     useState<Subscription | null>(null);
@@ -56,6 +60,8 @@ export default function Component() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [priceRange, setPriceRange] = useState("All");
   const [loading, setLoading] = useState<boolean>(false); // Add loading state
+  const [isSubscribing, setIsSubscribing] = useState<boolean>(false); // Add subscription loading state
+  const [balance, setBalance] = useState<string | null>(null);
 
   useEffect(() => {
     // Only fetch subscriptions if the wallet is connected and provider is available
@@ -95,6 +101,47 @@ export default function Component() {
     );
   });
 
+  // Function to subscribe to a subscription using the PaymentProcessor contract
+  const handleSubscribe = async () => {
+    if (!selectedSubscription) return;
+
+    try {
+      setIsSubscribing(true);
+      // Switch to Optimism Sepolia network if not already on it
+      await switchNetwork("0xaa37dc"); // Optimism Sepolia chain ID
+
+      // Get the payment processor contract
+      const paymentProcessorContract = await getPaymentProcessorContract();
+
+      // Remove the $ symbol and convert to a format that ethers.js can parse
+      const priceInEther = selectedSubscription.price.replace("$", "").trim();
+
+      // Parse the price into a format compatible with ethers.js
+      const price = ethers.parseUnits(priceInEther, "ether"); // Use parseUnits to avoid floating-point issues
+
+      // Perform the subscription by calling the contract
+      const tx = await paymentProcessorContract.subscribeSubscription(
+        selectedSubscription.id,
+        "optimismSepolia", // Or any other chain the user selected
+        { value: price } // Pass payment amount as value
+      );
+      await tx.wait();
+
+      console.log("Subscription successful", tx);
+      alert("Subscription successful!");
+    } catch (error) {
+      console.error("Error subscribing:", error);
+      alert("Subscription failed!");
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleNetworkSwitch = useCallback(async () => {
+    const updatedBalance = await getBalance();
+    setBalance(updatedBalance);
+  }, [getBalance]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1">
@@ -129,21 +176,6 @@ export default function Component() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="md:col-span-2"
                 />
-                <Select
-                  value={selectedCategory}
-                  onValueChange={setSelectedCategory}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Select value={priceRange} onValueChange={setPriceRange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Price Range" />
@@ -155,6 +187,9 @@ export default function Component() {
                     <SelectItem value="Over $10">Over $10</SelectItem>
                   </SelectContent>
                 </Select>
+                <NetworkSwitcherDropdown
+                  onNetworkSwitch={handleNetworkSwitch}
+                />
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {filteredSubscriptions.map((subscription) => (
@@ -218,39 +253,16 @@ export default function Component() {
                               {selectedSubscription?.description}
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="mt-4">
-                            <p className="font-bold mb-2">
-                              {selectedSubscription?.price}/
-                              {selectedSubscription?.frequency}
-                            </p>
-                            <p className="text-sm text-gray-500 mb-2">
-                              Interval: {selectedSubscription?.interval}
-                            </p>
-                            <p className="mb-2">Available payment chains:</p>
-                            <div className="flex space-x-2">
-                              {selectedSubscription?.chains.map(
-                                (chain: string) => (
-                                  <span
-                                    key={chain}
-                                    className="inline-flex items-center bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700"
-                                  >
-                                    {chain === "Ethereum" && (
-                                      <Ethereum className="w-4 h-4 mr-1" />
-                                    )}
-                                    {chain === "Polygon" && (
-                                      <Polygon className="w-4 h-4 mr-1" />
-                                    )}
-                                    {chain === "Binance" && (
-                                      <BNB className="w-4 h-4 mr-1" />
-                                    )}
-                                    {chain}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                          <Button className="mt-4 w-full">
-                            Confirm Subscription
+                          <Button
+                            className="mt-4 w-full"
+                            onClick={handleSubscribe}
+                            disabled={isSubscribing}
+                          >
+                            {isSubscribing ? (
+                              <Loader className="animate-spin h-5 w-5 mr-2" />
+                            ) : (
+                              "Confirm Subscription"
+                            )}
                           </Button>
                         </DialogContent>
                       </Dialog>

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { useWeb3Auth } from "../context/Web3AuthContext"; // Adjust the import path as per your project structure
+import { useWeb3Auth } from "../context/Web3AuthContext";
+import { BrowserProvider } from "ethers"; // Import BrowserProvider from ethers v6
 import {
   Select,
   SelectContent,
@@ -16,8 +17,9 @@ interface NetworkSwitcherDropdownProps {
 export default function NetworkSwitcherDropdown({
   onNetworkSwitch,
 }: NetworkSwitcherDropdownProps) {
-  const { switchNetwork } = useWeb3Auth();
-  const [selectedNetwork, setSelectedNetwork] = useState<string>("");
+  const { switchNetwork, provider } = useWeb3Auth();
+  const [selectedNetwork, setSelectedNetwork] = useState<string>("0xaa36a7"); // Default to Ethereum Sepolia
+  const [loading, setLoading] = useState<boolean>(true); // Track loading state
 
   const networks = [
     {
@@ -32,8 +34,37 @@ export default function NetworkSwitcherDropdown({
     },
   ];
 
+  // Fetch the current network when the component mounts
+  useEffect(() => {
+    const savedNetwork = localStorage.getItem("selectedNetwork"); // Check for a saved network in localStorage
+    if (savedNetwork) {
+      setSelectedNetwork(savedNetwork);
+      setLoading(false);
+    } else {
+      const fetchNetwork = async () => {
+        if (provider) {
+          try {
+            // Wrap Web3Auth provider with ethers.js BrowserProvider to access network details
+            const ethersProvider = new BrowserProvider(provider as any);
+            const network = await ethersProvider.getNetwork();
+            setSelectedNetwork(network.chainId.toString(16)); // Convert chainId to hex
+          } catch (error) {
+            console.error("Failed to fetch network:", error);
+          } finally {
+            setLoading(false); // Stop loading regardless of success or failure
+          }
+        } else {
+          setLoading(false); // If provider is not available, stop loading
+        }
+      };
+
+      fetchNetwork();
+    }
+  }, [provider]);
+
   const handleNetworkChange = async (value: string) => {
-    setSelectedNetwork(value);
+    setSelectedNetwork(value); // Update the state to reflect the selected network
+    localStorage.setItem("selectedNetwork", value); // Save the selected network in localStorage
     await switchNetwork(value);
     onNetworkSwitch(); // Trigger the callback to update balance and address
   };
@@ -42,11 +73,15 @@ export default function NetworkSwitcherDropdown({
     (network) => network.id === selectedNetwork
   );
 
+  if (loading) {
+    return <p>Loading network...</p>; // Simple loading state until the network is fetched
+  }
+
   return (
     <Select onValueChange={handleNetworkChange} value={selectedNetwork}>
       <SelectTrigger className="w-[220px]">
         <SelectValue placeholder="Select network">
-          {selectedNetworkData && (
+          {selectedNetworkData ? (
             <div className="flex items-center">
               <Image
                 src={selectedNetworkData.logo}
@@ -57,6 +92,8 @@ export default function NetworkSwitcherDropdown({
               />
               <span>{selectedNetworkData.name}</span>
             </div>
+          ) : (
+            <span>{networks[0].name}</span> // Default to Sepolia network if no match
           )}
         </SelectValue>
       </SelectTrigger>
