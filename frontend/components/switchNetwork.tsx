@@ -17,7 +17,7 @@ interface NetworkSwitcherDropdownProps {
 export default function NetworkSwitcherDropdown({
   onNetworkSwitch,
 }: NetworkSwitcherDropdownProps) {
-  const { switchNetwork, provider } = useWeb3Auth();
+  const { switchNetwork, provider, getUserInfo } = useWeb3Auth();
   const [selectedNetwork, setSelectedNetwork] = useState<string>("0xaa36a7"); // Default to Ethereum Sepolia
   const [loading, setLoading] = useState<boolean>(true); // Track loading state
 
@@ -66,6 +66,7 @@ export default function NetworkSwitcherDropdown({
     setSelectedNetwork(value); // Update the state to reflect the selected network
     localStorage.setItem("selectedNetwork", value); // Save the selected network in localStorage
     await switchNetwork(value);
+    await getUserInfo(); // Re-fetch user address after network switch
     onNetworkSwitch(); // Trigger the callback to update balance and address
   };
 

@@ -74,12 +74,15 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         await web3authInstance.initModal();
         setWeb3auth(web3authInstance);
 
+        const storedUserAddress = localStorage.getItem("userAddress");
+        if (storedUserAddress) {
+          setUserAddress(storedUserAddress); // Set userAddress from localStorage
+          setLoggedIn(true);
+        }
+
         if (web3authInstance.provider) {
           setProvider(web3authInstance.provider);
-          const user = await web3authInstance.getUserInfo();
-          setUser(user);
-          setLoggedIn(true);
-          await getUserInfo();
+          await getUserInfo(); // Re-fetch the user info
         }
 
         setInitializing(false);
@@ -116,6 +119,14 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       await getUserInfo();
       return true;
     }
+
+    const storedUserAddress = localStorage.getItem("userAddress");
+    if (storedUserAddress) {
+      setUserAddress(storedUserAddress);
+      setLoggedIn(true);
+      return true;
+    }
+
     return false;
   };
 
@@ -133,18 +144,22 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const getUserInfo = async () => {
-    if (web3auth) {
+    if (provider) {
       try {
-        const userInfo = await web3auth.getUserInfo();
-        setUser(userInfo);
-
         const ethersProvider = new ethers.BrowserProvider(provider as any);
         const signer = await ethersProvider.getSigner();
         const address = await signer.getAddress();
         setUserAddress(address);
+        localStorage.setItem("userAddress", address); // Store userAddress in localStorage
+        console.log(
+          "User Address fetched and stored in localStorage:",
+          address
+        );
       } catch (error) {
         console.error("Error getting user info:", error);
       }
+    } else {
+      console.warn("Provider is not initialized yet");
     }
   };
 

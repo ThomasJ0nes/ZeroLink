@@ -54,7 +54,7 @@ export const useContracts = () => {
         id: i,
         user: subscription.user,
         serviceProvider: subscription.serviceProvider,
-        amount: ethers.formatUnits(subscription.amount, "ether"),
+        amount: subscription.amount,
         interval: intervalReadable, // Use the readable format for interval
         nextPaymentDate: new Date(Number(subscription.nextPaymentDate) * 1000).toLocaleDateString(),
   
@@ -163,11 +163,13 @@ const fetchPaymentHistory = async () => {
 
 
  // function to handle subscription process
- const subscribeToSubscription = async (selectedChain: string) => {
+ const subscribeToSubscription = async (selectedChain: string, subscriptionId: number, subscriptionPrice: number) => {
   try {
-    const subscriptionId = 0; // Hard-coded subscription ID
-    const priceInWei = BigInt(91494101047981); // Hard-coded price in wei format
-    const hardCodeUserAddress = '0xc84C26376fdAB17f463d022744013FADe75423B8'
+    const etherToUsdRate = 1800;
+    const subId = subscriptionId; // Hard-coded subscription ID
+    const priceInWei = convertUsdToWei(subscriptionPrice, etherToUsdRate);
+    console.log(priceInWei)
+   
     const hardCodeUsdcTokenAddress = '0x5fd84259d66Cd46123540766Be93DFE6D43130D7'
     const contractPaymentAddress = '0xa9A5d49510dF9E9df1ccEC4d1dE647344166d120'
     console.log('Hardcoded Price in Wei (USDC smallest unit):', priceInWei.toString());
@@ -194,10 +196,11 @@ const fetchPaymentHistory = async () => {
 
     // Get LayerZero fee for the transaction
     const feeData = await subscriptionManagerContract.quote(
-      subscriptionId,
-      hardCodeUserAddress,
+      subId,
+      userAddress,
       "optimismSepolia"
     );
+   
     const layerZeroFee = feeData.nativeFee;
     console.log('LayerZero fee:', layerZeroFee);
 
@@ -253,7 +256,34 @@ const getSigner = async () => {
   return signer;
 }
 
+function convertUsdToWei(usdPrice: number, etherToUsdRate: number): bigint {
+  // Check if usdPrice is a valid number
+  if (isNaN(usdPrice) || usdPrice <= 0) {
+    throw new Error(`Invalid USD price: ${usdPrice}`);
+  }
 
+  // Step 1: Convert USD to Ether
+  const priceInEther = usdPrice / etherToUsdRate;
+
+  // Step 2: Convert Ether to Wei (multiply by 10^18)
+  const priceInWei = priceInEther * Math.pow(10, 18);
+
+  // Return as BigInt since Wei is a very large number
+  return BigInt(Math.floor(priceInWei));
+}
+
+// Example usage
+const usdPrice = 0.000000000002; // The USD price
+const etherToUsdRate = 1800; // Example: 1 Ether = 1800 USD
+
+try {
+  const priceInWei = convertUsdToWei(usdPrice, etherToUsdRate);
+  console.log(`Price in Wei: ${priceInWei.toString()}`);
+} catch (error: any) {
+  console.error(`Conversion error: ${error.message}`);
+}
+
+// Example usage
 
 
 
