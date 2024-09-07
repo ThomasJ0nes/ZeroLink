@@ -16,7 +16,7 @@ const PaymentProcessorModule = buildModule("PaymentProcessorModule", (m) => {
   // const router = m.getParameter("router", "0x9C32fCB86BF0f4a1A8921a9Fe46de3198bb884B2");
   // const usdc = m.getParameter("usdc", "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582");
 
-  // Avalance Fuji
+  // Avalanche Fuji
   const endpoint = m.getParameter("endpoint", "0x6EDCE65403992e310A62460808c4b910D972f10f");
   const router = m.getParameter("router", "0xF694E193200268f9a4868e4Aa017A0118C9a8177");
   const usdc = m.getParameter("usdc", "0x5425890298aed601595a70AB815c96711a31Bc65");

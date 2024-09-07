@@ -26,6 +26,9 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     mapping(address => Types.SubscribedSubscription[])
         public subscriberToSubscriptions;
 
+    error SubscriptionManager_AlreadySubscribed();
+
+
     /**
      * @notice Initializes the OApp with the source chain's endpoint address.
      * @param _lzEndpoint The endpoint address from LayerZero
@@ -122,56 +125,66 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     function subscribeSubscription(
-        uint256 _subscriptionId,
-        string calldata _preferredBlockchain
-    ) public payable {
-        Types.Subscription memory subscription = subscriptions[_subscriptionId];
+    uint256 _subscriptionId,
+    string calldata _preferredBlockchain
+) public payable {
+    Types.Subscription memory subscription = subscriptions[_subscriptionId];
 
-        if (subscription.provider == msg.sender) {
-            revert SubscriptionManager_NotProvider();
-        }
-
-        subscriberToSubscriptions[msg.sender].push(
-            Types.SubscribedSubscription({
-                subscriptionId: _subscriptionId,
-                nextPaymentDate: block.timestamp
-            })
-        );
-
-        emit SubscriptionSubscribed(_subscriptionId, msg.sender);
-
-        // Prepare the payload and send it to the target chain
-        bytes memory encodedMessage = abi.encode(
-            _subscriptionId,
-            msg.sender,
-            subscription.provider,
-            subscription.amount
-        );
-        _lzSend(
-            lzBlockchainEIDs[_preferredBlockchain],
-            encodedMessage,
-            lzOptions,
-            // Fee in native gas and ZRO token.
-            MessagingFee(msg.value, 0),
-            // Refund address in case of failed source message.
-            payable(msg.sender)
-        );
-
-        emit PaymentInitiated(
-            _subscriptionId,
-            msg.sender,
-            subscription.provider,
-            subscription.amount
-        );
-
-        emit MessageSent(
-            _subscriptionId,
-            msg.sender,
-            subscription.provider,
-            subscription.amount,
-            lzBlockchainEIDs[_preferredBlockchain]
-        );
+    if (subscription.provider == msg.sender) {
+        revert SubscriptionManager_NotProvider();
     }
+
+    // Check if the user has already subscribed to this subscription
+    uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender].length;
+    for (uint256 i = 0; i < subscriptionsLength; i++) {
+        if (subscriberToSubscriptions[msg.sender][i].subscriptionId == _subscriptionId) {
+            revert SubscriptionManager_AlreadySubscribed();
+        }
+    }
+
+    // If the user has not already subscribed, proceed with the subscription
+    subscriberToSubscriptions[msg.sender].push(
+        Types.SubscribedSubscription({
+            subscriptionId: _subscriptionId,
+            nextPaymentDate: block.timestamp
+        })
+    );
+
+    emit SubscriptionSubscribed(_subscriptionId, msg.sender);
+
+    // Prepare the payload and send it to the target chain
+    bytes memory encodedMessage = abi.encode(
+        _subscriptionId,
+        msg.sender,
+        subscription.provider,
+        subscription.amount
+    );
+    _lzSend(
+        lzBlockchainEIDs[_preferredBlockchain],
+        encodedMessage,
+        lzOptions,
+        // Fee in native gas and ZRO token.
+        MessagingFee(msg.value, 0),
+        // Refund address in case of failed source message.
+        payable(msg.sender)
+    );
+
+    emit PaymentInitiated(
+        _subscriptionId,
+        msg.sender,
+        subscription.provider,
+        subscription.amount
+    );
+
+    emit MessageSent(
+        _subscriptionId,
+        msg.sender,
+        subscription.provider,
+        subscription.amount,
+        lzBlockchainEIDs[_preferredBlockchain]
+    );
+}
+
 
     function unsubscribeSubscription(uint256 _subscriptionId) public {
         bool found = false;
@@ -184,7 +197,10 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                 _subscriptionId
             ) {
                 found = true;
-                delete subscriberToSubscriptions[msg.sender][i];
+
+                // Pop the last element and replace the current element with it
+                subscriberToSubscriptions[msg.sender][i] = subscriberToSubscriptions[msg.sender][subscriptionsLength - 1];
+                subscriberToSubscriptions[msg.sender].pop();
 
                 emit SubscriptionUnsubscribed(_subscriptionId, msg.sender);
 
