@@ -1,8 +1,12 @@
 {
   "_format": "hh-sol-dbg-1",
 <<<<<<< HEAD
+<<<<<<< HEAD
   "buildInfo": "../build-info/29c666830375bb3198742f2c0d342f14.json"
 =======
   "buildInfo": "..\\build-info\\7fb8399121ecfcc70461067579058cc7.json"
+>>>>>>> origin/contracts
+=======
+  "buildInfo": "..\\build-info\\b31a18947c5bac37d907f9dc39cf4975.json"
 >>>>>>> origin/contracts
 }

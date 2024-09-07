@@ -65,6 +65,33 @@ export const useContracts = () => {
   
     return subscriptions;
   };
+
+  // Function to show the 5 most recent user subscriptions from SubscriptionManager.sol
+  const fetchSubscriptionsByUser = async () => {
+    const contract = await getSubscriptionManagerContract(); 
+    const subscriptionCount = await contract.subscriptionCounter();
+    let subscriptions = [];
+  
+    for (let i = 0; i < subscriptionCount; i++) {
+      const subscription = await contract.subscriptions(i);
+
+      if(userAddress == subscription.user){
+        subscriptions.push({
+          id: i,
+          user: subscription.user,
+          serviceProviderName: subscription.serviceProviderName,
+          amount: ethers.formatUnits(subscription.amount, "ether"),
+          nextPaymentDate: new Date(Number(subscription.nextPaymentDate) * 1000).toLocaleDateString(),
+        });
+      }
+    }
+
+    if (subscriptions.length > 5) {
+      subscriptions = subscriptions.slice(Math.max(subscriptions.length - 5, 0));
+    }
+  
+    return subscriptions;
+  };
   
 // Helper function to convert interval in seconds to a human-readable format with proper singular/plural handling
 const formatInterval = (seconds: number): string => {
@@ -122,5 +149,5 @@ const fetchPaymentHistory = async () => {
   }
 }
 
-  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchPaymentHistory };
+  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchSubscriptionsByUser, fetchPaymentHistory };
 };

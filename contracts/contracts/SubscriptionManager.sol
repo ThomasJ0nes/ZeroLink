@@ -23,7 +23,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
     mapping(address => uint256[]) public providerToSubscriptions;
 
-    mapping(address => Types.SubcribedSubscription[])
+    mapping(address => Types.SubscribedSubscription[])
         public subscriberToSubscriptions;
 
     /**
@@ -132,9 +132,9 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
         }
 
         subscriberToSubscriptions[msg.sender].push(
-            Types.SubcribedSubscription({
+            Types.SubscribedSubscription({
                 subscriptionId: _subscriptionId,
-                nextPaymentDate: 0
+                nextPaymentDate: block.timestamp
             })
         );
 
@@ -208,12 +208,13 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
 
         for (uint256 i = 0; i < subscriptionsLength; i++) {
             if (
-                subscriberToSubscriptions[msg.sender][i].subscriptionId ==_subscriptionId
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
+                _subscriptionId
             ) {
                 Types.Subscription memory subscription = subscriptions[
                     _subscriptionId
                 ];
-                Types.SubcribedSubscription
+                Types.SubscribedSubscription
                     memory userSubscription = subscriberToSubscriptions[
                         msg.sender
                     ][i];
@@ -276,45 +277,45 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
     }
 
     function getAllSubscriptionsForProvider(
-        address provider
+        address _provider
     ) public view returns (Types.Subscription[] memory allSubscriptions) {
-        uint256 subscriptionsLength = providerToSubscriptions[provider].length;
+        uint256 subscriptionsLength = providerToSubscriptions[_provider].length;
 
         allSubscriptions = new Types.Subscription[](subscriptionsLength);
 
         for (uint256 i = 0; i < subscriptionsLength; i++) {
             allSubscriptions[i] = subscriptions[
-                providerToSubscriptions[provider][i]
+                providerToSubscriptions[_provider][i]
             ];
         }
     }
 
     function getAllSubscriptionsForSubscriber(
-        address subscriber
+        address _subscriber
     )
         public
         view
-        returns (Types.DetailSubcribedSubscription[] memory allSubscriptions)
+        returns (Types.DetailedSubscribedSubscription[] memory allSubscriptions)
     {
-        uint256 subscriptionsLength = subscriberToSubscriptions[subscriber]
+        uint256 subscriptionsLength = subscriberToSubscriptions[_subscriber]
             .length;
 
-        allSubscriptions = new Types.DetailSubcribedSubscription[](
+        allSubscriptions = new Types.DetailedSubscribedSubscription[](
             subscriptionsLength
         );
 
         for (uint256 i = 0; i < subscriptionsLength; i++) {
-            uint256 subscriptionId = subscriberToSubscriptions[subscriber][i]
+            uint256 subscriptionId = subscriberToSubscriptions[_subscriber][i]
                 .subscriptionId;
-            uint nextPaymentDate = subscriberToSubscriptions[subscriber][i]
+            uint nextPaymentDate = subscriberToSubscriptions[_subscriber][i]
                 .nextPaymentDate;
             Types.Subscription memory subscription = subscriptions[
                 subscriptionId
             ];
 
-            Types.DetailSubcribedSubscription
-                memory detailSubcribedSubscription = Types
-                    .DetailSubcribedSubscription({
+            Types.DetailedSubscribedSubscription
+                memory detailedSubscribedSubscription = Types
+                    .DetailedSubscribedSubscription({
                         subscriptionId: subscriptionId,
                         provider: subscription.provider,
                         name: subscription.name,
@@ -323,9 +324,8 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                         nextPaymentDate: nextPaymentDate
                     });
 
-            allSubscriptions[i] = detailSubcribedSubscription;
+            allSubscriptions[i] = detailedSubscribedSubscription;
         }
-        return allSubscriptions;
     }
 
     function addressToBytes32(address _addr) public pure returns (bytes32) {
@@ -372,10 +372,10 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
      */
     function _lzReceive(
         Origin calldata _origin,
-        bytes32 /*guid_*/,
+        bytes32 /*_guid*/,
         bytes calldata _message,
-        address /*executor_*/, // Executor address as specified by the OApp.
-        bytes calldata /*extraData_*/ // Any extra data or options to trigger on receipt.
+        address /*_executor*/, // Executor address as specified by the OApp.
+        bytes calldata /*_extraData*/ // Any extra data or options to trigger on receipt.
     ) internal override {
         // Decode the payload to get the message
         (uint256 subscriptionId, address subscriber) = abi.decode(
@@ -394,6 +394,7 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             ) {
                 subscriberToSubscriptions[subscriber][i]
                     .nextPaymentDate += subscription.interval;
+
                 break;
             }
         }
