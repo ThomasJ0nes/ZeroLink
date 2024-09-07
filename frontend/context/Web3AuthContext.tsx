@@ -7,9 +7,10 @@ import { Web3Auth } from "@web3auth/modal";
 import { ethers } from "ethers";
 
 const clientId =
-    "BES8NKuLsgCGtmYytKcQcWlv8g2BlRl8ABWBcbljuB1nX5qE_gSie03KIZNpfHf9_YmVv4zpoJznpc6LGq_6lgY";
+  "BES8NKuLsgCGtmYytKcQcWlv8g2BlRl8ABWBcbljuB1nX5qE_gSie03KIZNpfHf9_YmVv4zpoJznpc6LGq_6lgY";
 
-const chainConfig = {
+// Chain configuration for Ethereum Sepolia
+const ethereumSepoliaConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
   chainId: "0xaa36a7", // Ethereum Sepolia Testnet
   rpcTarget: "https://rpc.ankr.com/eth_sepolia",
@@ -19,8 +20,19 @@ const chainConfig = {
   tickerName: "Ethereum",
 };
 
+// Chain configuration for Optimism Sepolia
+const optimismSepoliaConfig = {
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  chainId: "0xaa37dc", // Optimism Sepolia Testnet
+  rpcTarget: "https://rpc.ankr.com/optimism_sepolia",
+  displayName: "Optimism Sepolia Testnet",
+  blockExplorerUrl: "https://optimism.etherscan.io",
+  ticker: "ETH",
+  tickerName: "Ethereum",
+};
+
 const privateKeyProvider = new EthereumPrivateKeyProvider({
-  config: { chainConfig },
+  config: { chainConfig: ethereumSepoliaConfig }, // Default to Ethereum Sepolia
 });
 
 interface IWeb3AuthContext {
@@ -34,14 +46,15 @@ interface IWeb3AuthContext {
   logout: () => Promise<void>;
   getUserInfo: () => Promise<void>;
   getBalance: () => Promise<string | null>;
-  checkAuthStatus: () => Promise<boolean>;
+  switchNetwork: (chainId: string) => Promise<void>;
+  checkAuthStatus: () => Promise<boolean>; // Added back checkAuthStatus
 }
 
 const Web3AuthContext = createContext<IWeb3AuthContext | null>(null);
 
 export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-                                                                            children,
-                                                                          }) => {
+  children,
+}) => {
   const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -79,6 +92,22 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     init();
   }, []);
 
+  const switchNetwork = async (chainId: string) => {
+    if (web3auth) {
+      try {
+        await web3auth.addChain(
+          chainId === ethereumSepoliaConfig.chainId
+            ? ethereumSepoliaConfig
+            : optimismSepoliaConfig
+        );
+        await web3auth.switchChain({ chainId });
+        console.log(`Switched to chain with ID: ${chainId}`);
+      } catch (error) {
+        console.error("Failed to switch network", error);
+      }
+    }
+  };
+
   const checkAuthStatus = async (): Promise<boolean> => {
     if (web3auth && web3auth.connected) {
       const user = await web3auth.getUserInfo();
@@ -108,7 +137,6 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const userInfo = await web3auth.getUserInfo();
         setUser(userInfo);
-        console.log("User info:", userInfo);
 
         const ethersProvider = new ethers.BrowserProvider(provider as any);
         const signer = await ethersProvider.getSigner();
@@ -143,7 +171,7 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const balance = await ethersProvider.getBalance(signer.getAddress());
         const formattedBalance = ethers.formatEther(balance);
         console.log("Balance:", formattedBalance);
-        return formattedBalance; // Return the formatted balance
+        return formattedBalance;
       } catch (error) {
         console.error("Error getting balance:", error);
         return null;
@@ -165,13 +193,14 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     logout,
     getUserInfo,
     getBalance,
-    checkAuthStatus,
+    switchNetwork, // Provide switchNetwork method
+    checkAuthStatus, // Added back checkAuthStatus
   };
 
   return (
-      <Web3AuthContext.Provider value={value}>
-        {children}
-      </Web3AuthContext.Provider>
+    <Web3AuthContext.Provider value={value}>
+      {children}
+    </Web3AuthContext.Provider>
   );
 };
 

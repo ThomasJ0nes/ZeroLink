@@ -50,18 +50,27 @@ import {
 import Actions from "./sections/Actions";
 import PaymentHistory from "./sections/PaymentHistory";
 import UserSettings from "./sections/UserSettings";
+import NetworkSwitcherDropdown from "@/components/switchNetwork";
 
-// Define the type for a Subscription
-interface Subscription {
+type Subscription = {
   subscriptionId: number;
+  provider: string;
   name: string;
-  amount: string;
-  interval: string;
-  nextPaymentDate?: string;
-}
+  amount: number;
+  interval: number;
+  nextPaymentDate: Date;
+};
 
 export default function DashboardPage() {
-  const { user, userAddress, getBalance, logout, checkAuthStatus, initializing } = useWeb3Auth();
+  const {
+    user,
+    userAddress,
+    getBalance,
+    logout,
+    checkAuthStatus,
+    initializing,
+  } = useWeb3Auth();
+
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { fetchSubscriptionsByUser } = useContracts();
@@ -70,21 +79,18 @@ export default function DashboardPage() {
   const [activeChain, setActiveChain] = useState("Sepolia");
   const [showNotifications, setShowNotifications] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
-  const [activeSubscriptions, setActiveSubscription] = useState<Subscription[]>([]);
+  const [activeSubscriptions, setActiveSubscription] = useState<Subscription[]>(
+    []
+  );
 
+  // Handle fetching active subscriptions
   const handleGetActiveSubscriptions = useCallback(async () => {
-    const subscriptions = (await fetchSubscriptionsByUser()).map((sub: any) => ({
-      subscriptionId: sub.id,
-      name: sub.name,
-      amount: sub.amount,
-      interval: sub.interval,
-      nextPaymentDate: sub.nextPaymentDate,
-    }));
-    setActiveSubscription(subscriptions);
+    const subscriptions = await fetchSubscriptionsByUser();
     console.log(subscriptions);
-
+    setActiveSubscription(subscriptions);
   }, [fetchSubscriptionsByUser]);
 
+  // Check authentication status and fetch balance when initialized
   useEffect(() => {
     const checkAuth = async () => {
       if (!initializing) {
@@ -92,21 +98,28 @@ export default function DashboardPage() {
         if (!isAuthenticated) {
           router.push("/auth?authRequired=true");
         } else {
-          getBalance().then(setBalance);
+          getBalance().then(setBalance); // Fetch and set balance
         }
         setIsCheckingAuth(false);
       }
     };
-
     checkAuth();
   }, [checkAuthStatus, getBalance, router, initializing]);
 
+  // Fetch active subscriptions when the user is authenticated
   useEffect(() => {
     if (user) {
       handleGetActiveSubscriptions();
     }
   }, [user, handleGetActiveSubscriptions]);
 
+  // Handle network switch by updating balance
+  const handleNetworkSwitch = useCallback(async () => {
+    const updatedBalance = await getBalance();
+    setBalance(updatedBalance);
+  }, [getBalance]);
+
+  // Handle logout functionality
   const handleLogout = async () => {
     setIsLoggingOut(true);
     await logout();
@@ -115,13 +128,14 @@ export default function DashboardPage() {
     }, 0);
   };
 
+  // Check if the page is initializing or user is checking auth status
   if (initializing || isCheckingAuth) {
     return (
-        <p>
-          Loading dashboard...{" "}
-          <Loader className="ml-2 h-5 w-5 text-purple-600 inline animate-spin"/>
-        </p>
-    )
+      <p>
+        Loading dashboard...{" "}
+        <Loader className="ml-2 h-5 w-5 text-purple-600 inline animate-spin" />
+      </p>
+    );
   }
 
   if (!user && !isLoggingOut) {
@@ -153,15 +167,17 @@ export default function DashboardPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeSubscriptions.map(subscription => (
-                        <TableRow key={subscription.subscriptionId}>
-                          <TableCell>{subscription.name}</TableCell>
+                      {activeSubscriptions.map((subscription) => (
+                        <TableRow key={subscription.id}>
+                          <TableCell>
+                            {subscription.serviceProviderName}
+                          </TableCell>
                           <TableCell>{subscription.amount}</TableCell>
                           <TableCell>{subscription.nextPaymentDate}</TableCell>
                           <TableCell>
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                            Active
-                          </span>
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                              Active
+                            </span>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -208,17 +224,19 @@ export default function DashboardPage() {
     <TooltipProvider>
       <div className="flex h-screen bg-gray-100">
         {/* Icon Sidebar */}
-        <aside className={`bg-white shadow-md transition-all duration-300 ease-in-out`}>
+        <aside
+          className={`bg-white shadow-md transition-all duration-300 ease-in-out`}
+        >
           <div className="flex flex-col h-full">
             <div className="p-4"></div>
             <nav className="flex-1 px-2 py-4 space-y-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                      variant={activePage === "dashboard" ? "secondary" : "ghost"}
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("dashboard")}
+                    variant={activePage === "dashboard" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("dashboard")}
                   >
                     <Home className="h-5 w-5" />
                   </Button>
@@ -230,10 +248,12 @@ export default function DashboardPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                      variant={activePage === "subscriptions" ? "secondary" : "ghost"}
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("subscriptions")}
+                    variant={
+                      activePage === "subscriptions" ? "secondary" : "ghost"
+                    }
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("subscriptions")}
                   >
                     <Clock className="h-5 w-5" />
                   </Button>
@@ -245,10 +265,10 @@ export default function DashboardPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                      variant={activePage === "history" ? "secondary" : "ghost"}
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("history")}
+                    variant={activePage === "history" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("history")}
                   >
                     <History className="h-5 w-5" />
                   </Button>
@@ -260,10 +280,10 @@ export default function DashboardPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                      variant={activePage === "settings" ? "secondary" : "ghost"}
-                      size="icon"
-                      className="w-full"
-                      onClick={() => setActivePage("settings")}
+                    variant={activePage === "settings" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="w-full"
+                    onClick={() => setActivePage("settings")}
                   >
                     <Settings className="h-5 w-5" />
                   </Button>
@@ -275,7 +295,7 @@ export default function DashboardPage() {
             </nav>
           </div>
         </aside>
-       {/* Main Content */}
+        {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className=" shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
@@ -283,32 +303,15 @@ export default function DashboardPage() {
                 ZeroLink Dashboard
               </h1>
               <div className="flex items-center space-x-4">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      {activeChain}
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                        onSelect={() => setActiveChain("Sepolia")}
-                    >
-                      Sepolia
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                        onSelect={() => setActiveChain("Optimism")}
-                    >
-                      Optimism
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <NetworkSwitcherDropdown
+                  onNetworkSwitch={handleNetworkSwitch}
+                />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowNotifications(!showNotifications)}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowNotifications(!showNotifications)}
                     >
                       <Bell className="h-5 w-5" />
                     </Button>
@@ -350,12 +353,17 @@ export default function DashboardPage() {
               </div>
             </div>
           </header>
-          <main className="flex-1 overflow-x-hidden overflow-y-auto ">
+          <main className="flex-1 overflow-x-hidden overflow-y-auto">
             <div className="container mx-auto px-2 py-8">
               <div className="mb-8">
                 <h2 className="text-xl font-semibold">Welcome, {user?.name}</h2>
-                <p><strong>Your wallet address:</strong> {userAddress}</p>
-                <p><strong>Balance:</strong> {balance ? `${balance} ETH` : "Loading..."}</p>
+                <p>
+                  <strong>Your wallet address:</strong> {userAddress}
+                </p>
+                <p>
+                  <strong>Balance:</strong>{" "}
+                  {balance ? `${balance} ETH` : "Loading..."}
+                </p>
               </div>
               {renderContent()}
             </div>

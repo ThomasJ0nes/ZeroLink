@@ -55,6 +55,7 @@ interface ISubscriptionManager {
     error SubscriptionManager_ZeroInterval();
     error SubscriptionManager_OnlyProvider();
     error SubscriptionManager_NotProvider();
+    error SubscriptionManager_AlreadySubscribed();
     error SubscriptionManager_OnlySubcriber();
     error SubscriptionManager_PaymentNotDueYet();
 }
