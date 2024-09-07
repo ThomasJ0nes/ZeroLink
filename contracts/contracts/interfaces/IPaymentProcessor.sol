@@ -28,10 +28,6 @@ interface IPaymentProcessor {
     );
 
     error PaymentProcessor_NotApprovedToTransferUSDCToken();
-    error PaymentProcessor_NotEnoughBalanceToTransferTokens(
-        uint256 currentBalance,
-        uint256 calculatedFees
-    );
     error PaymentProcessor_NotEnoughBalanceToSendMessage(
         uint256 currentBalance,
         uint256 calculatedFees
@@ -42,8 +38,8 @@ interface IPaymentProcessor {
         address target,
         uint256 value
     );
-    error PaymentProcessor_DestinationChainNotAllowlisted(
-        uint64 destinationChainSelector
+    error PaymentProcessor_NotEnoughBalanceToTransferTokens(
+        uint256 currentBalance,
+        uint256 calculatedFees
     );
-    error PaymentProcessor_InvalidReceiverAddress();
 }

@@ -131,6 +131,19 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
             revert SubscriptionManager_NotProvider();
         }
 
+        // Check if the user has already subscribed to this subscription
+        uint256 subscriptionsLength = subscriberToSubscriptions[msg.sender]
+            .length;
+        for (uint256 i = 0; i < subscriptionsLength; i++) {
+            if (
+                subscriberToSubscriptions[msg.sender][i].subscriptionId ==
+                _subscriptionId
+            ) {
+                revert SubscriptionManager_AlreadySubscribed();
+            }
+        }
+
+        // If the user has not already subscribed, proceed with the subscription
         subscriberToSubscriptions[msg.sender].push(
             Types.SubscribedSubscription({
                 subscriptionId: _subscriptionId,
@@ -184,7 +197,14 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                 _subscriptionId
             ) {
                 found = true;
-                delete subscriberToSubscriptions[msg.sender][i];
+
+                // Pop the last element and replace the current element with it
+                subscriberToSubscriptions[msg.sender][
+                    i
+                ] = subscriberToSubscriptions[msg.sender][
+                    subscriptionsLength - 1
+                ];
+                subscriberToSubscriptions[msg.sender].pop();
 
                 emit SubscriptionUnsubscribed(_subscriptionId, msg.sender);
 
@@ -211,6 +231,8 @@ contract SubscriptionManager is OAppSender, OAppReceiver, ISubscriptionManager {
                 subscriberToSubscriptions[msg.sender][i].subscriptionId ==
                 _subscriptionId
             ) {
+                found = true;
+
                 Types.Subscription memory subscription = subscriptions[
                     _subscriptionId
                 ];
