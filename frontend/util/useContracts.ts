@@ -1,5 +1,5 @@
 import { useWeb3Auth } from "@/context/Web3AuthContext";
-import { Contract, ethers } from "ethers";
+import { Contract, ethers, AbiCoder, ZeroAddress  } from "ethers";
 import SubscriptionManagerABI from "../../contracts/ignition/deployments/chain-11155111/artifacts/SubscriptionManagerModule#SubscriptionManager.json";
 import OptimismPaymentProcessorABI from "../../contracts/ignition/deployments/chain-84532/artifacts/PaymentProcessorModule#PaymentProcessor.json";
 
@@ -8,7 +8,7 @@ const SUBSCRIPTION_MANAGER_ADDRESS = '0x6fAdcb29EC4831b4982BE5dA30191a6B0B1E3015
 const OPTIMISM_PAYMENT_PROCESSOR_ADDRESS = '0xa9A5d49510dF9E9df1ccEC4d1dE647344166d120';
 
 export const useContracts = () => {
-  const { provider, loggedIn, userAddress } = useWeb3Auth(); // Access provider and login status from context
+  const { provider, loggedIn, userAddress, switchNetwork  } = useWeb3Auth(); // Access provider and login status from context
 
   // Initialize ethers provider and signer only if the provider is available and user is logged in
   const initializeEthers = async () => {
@@ -156,5 +156,67 @@ const fetchPaymentHistory = async () => {
 };
 
 
-  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchSubscriptionsByUser, fetchPaymentHistory };
+// New function to handle subscription process
+
+const subscribeToSubscription = async (
+  subscriptionId: number,
+  priceInUSDC: string, // Expect the price in USDC
+  selectedChain: string
+) => {
+  try {
+    // Switch to the appropriate network (Optimism Sepolia)
+    if (selectedChain === "optimismSepolia") {
+      await switchNetwork("0xaa37dc"); // Optimism Sepolia chain ID
+    }
+
+    // Get the payment processor and subscription manager contracts
+    const paymentProcessorContract = await getPaymentProcessorContract();
+    const subscriptionManagerContract = await getSubscriptionManagerContract(); 
+
+    // Fetch subscription details to get the provider's address
+    const subscriptionDetails = await subscriptionManagerContract.subscriptions(subscriptionId);
+    const providerAddress = subscriptionDetails.provider; // Assuming provider is part of the subscription details
+
+    // Ensure subscriptionDetails has valid data
+    if (!providerAddress || providerAddress === ZeroAddress) { // Use `ZeroAddress` in ethers v6
+      throw new Error(`Invalid provider for subscription ID: ${subscriptionId}`);
+    }
+
+    // Parse the price in USDC to the correct format
+    const price = ethers.parseUnits(priceInUSDC, 6); // Assuming USDC has 6 decimals
+
+    // Use AbiCoder directly in ethers.js v6
+    const abiCoder = new AbiCoder();
+
+    // Call the contract's `performUpkeep` method with encoded arguments
+    const tx = await paymentProcessorContract.performUpkeep(
+      abiCoder.encode(
+        ['uint256', 'address', 'address', 'uint256', 'uint32', 'bytes32', 'uint64'], // The arguments to decode
+        [
+          subscriptionId,
+          userAddress,
+          providerAddress, // Dynamically fetched provider's address
+          price,
+          0,
+          "0x0000000000000000000000000000000000000000000000000000000000000000", // 32-byte zero value
+          0
+        ]
+      )
+    );
+    
+    console.log('Subscription Details:', subscriptionDetails);
+    await tx.wait();
+
+    console.log("Subscription successful", tx);
+    return { success: true, tx };
+  } catch (error) {
+    console.error("Subscription failed:", error);
+    throw error; // Rethrow error to handle it in the component
+  }
+};
+
+
+
+
+  return { getSubscriptionManagerContract, getPaymentProcessorContract, fetchAllSubscriptions, fetchSubscriptionsByUser, fetchPaymentHistory, subscribeToSubscription };
 };

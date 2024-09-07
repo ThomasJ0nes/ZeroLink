@@ -25,12 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BNB, Ethereum, Polygon } from "@/public/icons/Icons";
+import { Loader } from "lucide-react";
 import { useContracts } from "@/util/useContracts"; // Import the updated hook
 import { useWeb3Auth } from "@/context/Web3AuthContext"; // Import to check wallet connection
-import { Loader } from "lucide-react";
 import NetworkSwitcherDropdown from "@/components/switchNetwork";
-import { ethers } from "ethers";
 
 // Define the type for a Subscription
 type Subscription = {
@@ -50,7 +48,7 @@ type Subscription = {
 };
 
 export default function Component() {
-  const { fetchAllSubscriptions, getPaymentProcessorContract } = useContracts(); // Updated to include getPaymentProcessorContract
+  const { fetchAllSubscriptions, subscribeToSubscription } = useContracts(); // Updated to include subscribeToSubscription
   const { provider, loggedIn, login, initializing, switchNetwork, getBalance } =
     useWeb3Auth(); // Access provider and login status
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -82,53 +80,24 @@ export default function Component() {
     loadSubscriptions();
   }, [loggedIn, provider]); // Dependency array checks for wallet connection status
 
-  // Extract categories dynamically from subscriptions
-  const categories = [
-    "All",
-    ...new Set(subscriptions.map((sub) => sub.category)),
-  ];
-
-  const filteredSubscriptions = subscriptions.filter((sub) => {
-    const price = parseFloat(sub.price.replace("$", "")); // Convert price to a number for comparison
-
-    return (
-      sub.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (selectedCategory === "All" || sub.category === selectedCategory) &&
-      (priceRange === "All" ||
-        (priceRange === "Under $5" && price < 5) ||
-        (priceRange === "$5 - $10" && price >= 5 && price <= 10) ||
-        (priceRange === "Over $10" && price > 10))
-    );
-  });
-
-  // Function to subscribe to a subscription using the PaymentProcessor contract
   const handleSubscribe = async () => {
     if (!selectedSubscription) return;
 
     try {
       setIsSubscribing(true);
-      // Switch to Optimism Sepolia network if not already on it
-      await switchNetwork("0xaa37dc"); // Optimism Sepolia chain ID
-
-      // Get the payment processor contract
-      const paymentProcessorContract = await getPaymentProcessorContract();
-
-      // Remove the $ symbol and convert to a format that ethers.js can parse
+      // Extract the price and remove any unwanted characters (like $)
       const priceInEther = selectedSubscription.price.replace("$", "").trim();
 
-      // Parse the price into a format compatible with ethers.js
-      const price = ethers.parseUnits(priceInEther, "ether"); // Use parseUnits to avoid floating-point issues
-
-      // Perform the subscription by calling the contract
-      const tx = await paymentProcessorContract.subscribeSubscription(
+      // Call the subscribeToSubscription function in useContracts
+      const result = await subscribeToSubscription(
         selectedSubscription.id,
-        "optimismSepolia", // Or any other chain the user selected
-        { value: price } // Pass payment amount as value
+        priceInEther,
+        "optimismSepolia" // Replace with dynamic chain if necessary
       );
-      await tx.wait();
 
-      console.log("Subscription successful", tx);
-      alert("Subscription successful!");
+      if (result.success) {
+        alert("Subscription successful!");
+      }
     } catch (error) {
       console.error("Error subscribing:", error);
       alert("Subscription failed!");
@@ -136,11 +105,6 @@ export default function Component() {
       setIsSubscribing(false);
     }
   };
-
-  const handleNetworkSwitch = useCallback(async () => {
-    const updatedBalance = await getBalance();
-    setBalance(updatedBalance);
-  }, [getBalance]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -162,7 +126,7 @@ export default function Component() {
           )}
         </section>
         <div className="max-w-7xl mx-auto px-4 py-8">
-          {loading ? ( // Check if loading is true
+          {loading ? (
             <p>
               Loading subscriptions...{" "}
               <Loader className="ml-2 h-5 w-5 text-purple-600 inline animate-spin" />
@@ -188,11 +152,11 @@ export default function Component() {
                   </SelectContent>
                 </Select>
                 <NetworkSwitcherDropdown
-                  onNetworkSwitch={handleNetworkSwitch}
+                  onNetworkSwitch={() => getBalance().then(setBalance)}
                 />
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredSubscriptions.map((subscription) => (
+                {subscriptions.map((subscription) => (
                   <Card key={subscription.id}>
                     <CardHeader>
                       <img
@@ -215,22 +179,6 @@ export default function Component() {
                       <p className="text-sm text-gray-500 mb-2">
                         Payment Interval: {subscription.interval}
                       </p>
-                      <div className="flex space-x-2 mt-2">
-                        {subscription.chains.map((chain: string) => (
-                          <span
-                            key={chain}
-                            className="inline-flex items-center bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700"
-                          >
-                            {chain === "Ethereum" && (
-                              <Ethereum className="w-4 h-4 mr-1" />
-                            )}
-                            {chain === "Polygon" && (
-                              <Polygon className="w-4 h-4 mr-1" />
-                            )}
-                            {chain}
-                          </span>
-                        ))}
-                      </div>
                     </CardContent>
                     <CardFooter>
                       <Dialog>
