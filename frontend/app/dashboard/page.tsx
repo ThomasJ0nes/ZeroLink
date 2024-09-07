@@ -52,13 +52,13 @@ import PaymentHistory from "./sections/PaymentHistory";
 import UserSettings from "./sections/UserSettings";
 
 // Define the type for a Subscription
-type Subscription = {
-  id: number;
-  user: string;
-  amount: number;
-  serviceProviderName: string;
-  nextPayment: Date;
-};
+interface Subscription {
+  subscriptionId: number;
+  name: string;
+  amount: string;
+  interval: string;
+  nextPaymentDate?: string;
+}
 
 export default function DashboardPage() {
   const { user, userAddress, getBalance, logout, checkAuthStatus, initializing } = useWeb3Auth();
@@ -73,9 +73,16 @@ export default function DashboardPage() {
   const [activeSubscriptions, setActiveSubscription] = useState<Subscription[]>([]);
 
   const handleGetActiveSubscriptions = useCallback(async () => {
-    const subscriptions = await fetchSubscriptionsByUser();
-    console.log(subscriptions);
+    const subscriptions = (await fetchSubscriptionsByUser()).map((sub: any) => ({
+      subscriptionId: sub.id,
+      name: sub.name,
+      amount: sub.amount,
+      interval: sub.interval,
+      nextPaymentDate: sub.nextPaymentDate,
+    }));
     setActiveSubscription(subscriptions);
+    console.log(subscriptions);
+
   }, [fetchSubscriptionsByUser]);
 
   useEffect(() => {
@@ -147,8 +154,8 @@ export default function DashboardPage() {
                     </TableHeader>
                     <TableBody>
                       {activeSubscriptions.map(subscription => (
-                        <TableRow key={subscription.id}>
-                          <TableCell>{subscription.serviceProviderName}</TableCell>
+                        <TableRow key={subscription.subscriptionId}>
+                          <TableCell>{subscription.name}</TableCell>
                           <TableCell>{subscription.amount}</TableCell>
                           <TableCell>{subscription.nextPaymentDate}</TableCell>
                           <TableCell>
