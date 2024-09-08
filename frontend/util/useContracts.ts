@@ -39,45 +39,37 @@ export const useContracts = () => {
 
   // Function to get all subscriptions from SubscriptionManager.sol
   const fetchAllSubscriptions = async () => {
-    const contract = await getSubscriptionManagerContract(); 
+    const contract = await getSubscriptionManagerContract();
     const subscriptionCount = await contract.subscriptionCounter();
     const subscriptions = [];
-  
+
     for (let i = 0; i < subscriptionCount; i++) {
       const subscription = await contract.subscriptions(i);
-  
+
       // Convert interval from seconds to a readable format using the helper function
       const intervalInSeconds = Number(subscription.interval);
       const intervalReadable = formatInterval(intervalInSeconds);
-  
+
       subscriptions.push({
         id: i,
         user: subscription.user,
-        serviceProvider: subscription.serviceProvider,
-        amount: subscription.amount,
-        interval: intervalReadable, // Use the readable format for interval
+        serviceProvider: subscription.provider,
+        amount: ethers.formatEther(subscription.amount), // Format amount to Ether here
+        interval: intervalReadable,
         nextPaymentDate: new Date(Number(subscription.nextPaymentDate) * 1000).toLocaleDateString(),
-  
-        // Placeholder values
-        name: `Subscription ${i + 1}`,
-        description: "Placeholder description",
-        price: `$${ethers.formatUnits(subscription.amount, "ether")}`,
-        frequency: "month",
-        image: "/placeholder.svg",
-        chains: ["Ethereum"],
-        category: "General",
+        name: subscription.name,
       });
     }
-  
+
     return subscriptions;
   };
 
   // Function to show the 5 most recent user subscriptions from SubscriptionManager.sol
   const fetchSubscriptionsByUser = async () => {
-    const contract = await getSubscriptionManagerContract(); 
+    const contract = await getSubscriptionManagerContract();
     const subscriptionCount = await contract.subscriptionCounter();
     let subscriptions = [];
-  
+
     for (let i = 0; i < subscriptionCount; i++) {
       const subscription = await contract.subscriptions(i);
 
@@ -95,71 +87,71 @@ export const useContracts = () => {
     if (subscriptions.length > 5) {
       subscriptions = subscriptions.slice(Math.max(subscriptions.length - 5, 0));
     }
-  
+
     return subscriptions;
   };
-  
+
 // Helper function to convert interval in seconds to a human-readable format with proper singular/plural handling
-const formatInterval = (seconds: number): string => {
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? '' : 's'}`;
-  if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  }
-  if (seconds < 86400) {
-    const hours = Math.floor(seconds / 3600);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  if (seconds < 604800) {
-    const days = Math.floor(seconds / 86400);
-    return `${days} day${days === 1 ? '' : 's'}`;
-  }
-  if (seconds < 2592000) {
-    const weeks = Math.floor(seconds / 604800);
-    return `${weeks} week${weeks === 1 ? '' : 's'}`;
-  }
-  if (seconds < 31536000) {
-    const months = Math.floor(seconds / 2592000);
-    return `${months} month${months === 1 ? '' : 's'}`;
-  }
-  const years = Math.floor(seconds / 31536000);
-  return `${years} year${years === 1 ? '' : 's'}`;
-};
+  const formatInterval = (seconds: number): string => {
+    if (seconds < 60) return `${seconds} second${seconds === 1 ? '' : 's'}`;
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+    }
+    if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      return `${hours} hour${hours === 1 ? '' : 's'}`;
+    }
+    if (seconds < 604800) {
+      const days = Math.floor(seconds / 86400);
+      return `${days} day${days === 1 ? '' : 's'}`;
+    }
+    if (seconds < 2592000) {
+      const weeks = Math.floor(seconds / 604800);
+      return `${weeks} week${weeks === 1 ? '' : 's'}`;
+    }
+    if (seconds < 31536000) {
+      const months = Math.floor(seconds / 2592000);
+      return `${months} month${months === 1 ? '' : 's'}`;
+    }
+    const years = Math.floor(seconds / 31536000);
+    return `${years} year${years === 1 ? '' : 's'}`;
+  };
 
-const fetchPaymentHistory = async () => {
-  const ethersProvider = new ethers.BrowserProvider(provider as any);
+  const fetchPaymentHistory = async () => {
+    const ethersProvider = new ethers.BrowserProvider(provider as any);
 
-  const payments = [];
-  const contract = await getSubscriptionManagerContract(); 
-  const filter = contract.filters.PaymentFinished(null);
-  const logs = await contract.queryFilter(filter, 6624434, 6627434);
+    const payments = [];
+    const contract = await getSubscriptionManagerContract();
+    const filter = contract.filters.PaymentFinished(null);
+    const logs = await contract.queryFilter(filter, 6624434, 6627434);
 
-  for (let i = 0; i < logs.length; i++) {
-    // Get the date of this payment
-    const block = await ethersProvider.getBlock(logs[i].blockNumber);
-    if (block) {  // Check if block is not null
-      const eventDate = new Date(block.timestamp * 1000);
+    for (let i = 0; i < logs.length; i++) {
+      // Get the date of this payment
+      const block = await ethersProvider.getBlock(logs[i].blockNumber);
+      if (block) {  // Check if block is not null
+        const eventDate = new Date(block.timestamp * 1000);
 
-      // Check if this log is an EventLog by checking if it has 'args' property
-      if ('args' in logs[i]) {
-        const eventLog = logs[i] as ethers.EventLog; // Explicitly cast to EventLog
-        if (userAddress === eventLog.args[1]) {
-          payments.push({
-            id: i,
-            date: eventDate,
-            service: "Netflix",
-            amount: ethers.formatUnits(eventLog.args[3], "ether"),
-            blockchain: "Ethereum",
-            status: "Completed",
-            hash: logs[i].transactionHash
-          });
+        // Check if this log is an EventLog by checking if it has 'args' property
+        if ('args' in logs[i]) {
+          const eventLog = logs[i] as ethers.EventLog; // Explicitly cast to EventLog
+          if (userAddress === eventLog.args[1]) {
+            payments.push({
+              id: i,
+              date: eventDate,
+              service: "Netflix",
+              amount: ethers.formatUnits(eventLog.args[3], "ether"),
+              blockchain: "Ethereum",
+              status: "Completed",
+              hash: logs[i].transactionHash
+            });
+          }
         }
       }
     }
-  }
 
-  return payments;
-};
+    return payments;
+  };
 
 
  // function to handle subscription process

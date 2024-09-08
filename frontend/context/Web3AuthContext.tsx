@@ -63,8 +63,11 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [initializing, setInitializing] = useState<boolean>(true);
 
   useEffect(() => {
+    let isInitialized = false;
     const init = async () => {
+      if (isInitialized) return;
       try {
+        isInitialized = true;
         const web3authInstance = new Web3Auth({
           clientId,
           web3AuthNetwork: "sapphire_devnet",
@@ -87,6 +90,7 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         setInitializing(false);
       } catch (error) {
+        isInitialized = false;
         console.error("Failed to initialize Web3Auth", error);
         setInitializing(false);
       }
@@ -143,18 +147,23 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const [lastUserInfoUpdate, setLastUserInfoUpdate] = useState(0);
+
   const getUserInfo = async () => {
-    if (provider) {
+    if (web3auth && Date.now() - lastUserInfoUpdate > 60000) { // Update every minute
       try {
-        const ethersProvider = new ethers.BrowserProvider(provider as any);
-        const signer = await ethersProvider.getSigner();
-        const address = await signer.getAddress();
-        setUserAddress(address);
-        localStorage.setItem("userAddress", address); // Store userAddress in localStorage
-        console.log(
-          "User Address fetched and stored in localStorage:",
-          address
-        );
+        const userInfo = await web3auth.getUserInfo();
+        setUser(userInfo);
+        setLastUserInfoUpdate(Date.now());
+
+        // Get and set the user's Ethereum address
+        if (provider) {
+          const ethersProvider = new ethers.BrowserProvider(provider as any);
+          const signer = await ethersProvider.getSigner();
+          const address = await signer.getAddress();
+          setUserAddress(address);
+          console.log("User Ethereum address:", address);
+        }
       } catch (error) {
         console.error("Error getting user info:", error);
       }
