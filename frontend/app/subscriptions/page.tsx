@@ -40,7 +40,7 @@ type Subscription = {
   nextPaymentDate: string;
   name: string;
   description: string;
-  price: string;
+  price: number;
   frequency: string;
   image: string;
   chains: string[];
@@ -49,8 +49,15 @@ type Subscription = {
 
 export default function Component() {
   const { fetchAllSubscriptions, subscribeToSubscription } = useContracts(); // Updated to include subscribeToSubscription
-  const { provider, loggedIn, login, initializing, switchNetwork, getBalance } =
-    useWeb3Auth(); // Access provider and login status
+  const {
+    provider,
+    loggedIn,
+    login,
+    initializing,
+    switchNetwork,
+    getBalance,
+    userAddress,
+  } = useWeb3Auth(); // Access provider and login status
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [selectedSubscription, setSelectedSubscription] =
     useState<Subscription | null>(null);
@@ -85,14 +92,20 @@ export default function Component() {
 
     try {
       setIsSubscribing(true);
-      // Extract the price and remove any unwanted characters (like $)
-      const priceInEther = selectedSubscription.price.replace("$", "").trim();
 
-      // Call the subscribeToSubscription function in useContracts
+      // Ensure selectedSubscription.price is a valid number
+      const price = parseFloat(
+        String(selectedSubscription.price).replace("$", "")
+      );
+      if (isNaN(price)) {
+        throw new Error(`Invalid price: ${selectedSubscription.price}`);
+      }
+
+      // Call the subscribeToSubscription function
       const result = await subscribeToSubscription(
-        selectedSubscription.id,
-        priceInEther,
-        "optimismSepolia" // Replace with dynamic chain if necessary
+        "optimismSepolia", // Replace with dynamic chain if necessary
+        selectedSubscription.id, // Pass the selected subscription's ID
+        price // Pass the parsed price
       );
 
       if (result.success) {
@@ -105,6 +118,26 @@ export default function Component() {
       setIsSubscribing(false);
     }
   };
+
+  useEffect(() => {
+    console.log("Logged In Status:", loggedIn);
+    console.log("User Address:", userAddress);
+
+    if (loggedIn && provider) {
+      const loadSubscriptions = async () => {
+        setLoading(true);
+        try {
+          const subs = await fetchAllSubscriptions();
+          setSubscriptions(subs);
+        } catch (error) {
+          console.error("Failed to load subscriptions:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadSubscriptions();
+    }
+  }, [loggedIn, provider, userAddress]); // Add userAddress as a dependency
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -173,9 +206,7 @@ export default function Component() {
                       <p className="text-sm text-gray-500 mb-2">
                         {subscription.description}
                       </p>
-                      <p className="font-bold">
-                        {subscription.price}/{subscription.frequency}
-                      </p>
+                      <p className="font-bold">{subscription.price}</p>
                       <p className="text-sm text-gray-500 mb-2">
                         Payment Interval: {subscription.interval}
                       </p>
