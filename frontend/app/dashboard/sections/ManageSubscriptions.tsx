@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { ethers } from "ethers";
 import { useToast } from "@/components/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { Loader } from "lucide-react";
 
 interface Subscription {
   subscriptionId: number;
@@ -42,7 +43,6 @@ export const ManageSubscriptions: React.FC = () => {
     fetchSubscriptionsByUser,
     fetchAllSubscriptions,
     getSubscriptionManagerContract,
-    subscribeToSubscription,
   } = useContracts();
 
   const { toast } = useToast();
@@ -118,7 +118,7 @@ export const ManageSubscriptions: React.FC = () => {
     try {
       const contract = await getSubscriptionManagerContract();
       const amountInWei = ethers.parseEther(newAmount);
-      const intervalInSeconds = parseInt(newInterval) * 86400; // Convert days to seconds
+      const intervalInSeconds = parseInt(newInterval);
       const tx = await contract.updateSubscription(subscriptionId, newName, amountInWei, intervalInSeconds);
       await tx.wait();
       // Refresh subscriptions after updating
@@ -137,28 +137,6 @@ export const ManageSubscriptions: React.FC = () => {
       toast({ title: "Subscription Updated", description: "Your subscription was updated successfully." });
     } catch (error) {
       console.error("Failed to update subscription:", error);
-    }
-  };
-
-  const handleSubscribe = async (subscriptionId: number, priceInUSDC: string) => {
-    try {
-      await subscribeToSubscription(subscriptionId, priceInUSDC, "optimismSepolia");
-      // Refresh subscriptions after subscribing
-      const subscribed = await fetchSubscriptionsByUser();
-      const mappedSubscribed: Subscription[] = subscribed.map(sub => ({
-        subscriptionId: sub.id,
-        name: sub.serviceProviderName,
-        amount: sub.amount,
-        interval: "0",
-        nextPaymentDate: sub.nextPaymentDate,
-        user: sub.user,
-        serviceProviderName: sub.serviceProviderName
-      }));
-      setSubscribedSubscriptions(mappedSubscribed);
-
-      toast({ title: "Subscribed", description: "You have successfully subscribed." });
-    } catch (error) {
-      console.error("Failed to subscribe:", error);
     }
   };
 
@@ -182,7 +160,7 @@ export const ManageSubscriptions: React.FC = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Next Payment</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Unsubscribe</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -229,7 +207,7 @@ export const ManageSubscriptions: React.FC = () => {
                     <TableRow key={sub.subscriptionId}>
                       <TableCell>{sub.name}</TableCell>
                       <TableCell>{sub.amount} ETH</TableCell>
-                      <TableCell>{(parseInt(sub.interval) / 86400).toString()} days</TableCell>
+                      <TableCell>{sub.interval}</TableCell>
                       <TableCell>
                         <UpdateSubscriptionDialog
                             subscription={sub}
@@ -255,55 +233,130 @@ interface UpdateSubscriptionDialogProps {
 const UpdateSubscriptionDialog: React.FC<UpdateSubscriptionDialogProps> = ({ subscription, onUpdate }) => {
   const [name, setName] = useState<string>(subscription.name);
   const [amount, setAmount] = useState<string>(subscription.amount);
-  const [interval, setInterval] = useState<string>((parseInt(subscription.interval) / 86400).toString());
+  const [intervalValue, setIntervalValue] = useState<string>((parseInt(subscription.interval) / 86400).toString());
+  const [intervalUnit, setIntervalUnit] = useState<string>("days");
+  const [open, setOpen] = useState<boolean>(false); // Track dialog state
+  const [loading, setLoading] = useState<boolean>(false); // Track loading state
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const intervalInSeconds = parseInt(subscription.interval);
+    if (intervalInSeconds % 2592000 === 0) {
+      setIntervalValue((intervalInSeconds / 2592000).toString());
+      setIntervalUnit("months");
+    } else if (intervalInSeconds % 604800 === 0) {
+      setIntervalValue((intervalInSeconds / 604800).toString());
+      setIntervalUnit("weeks");
+    } else if (intervalInSeconds % 86400 === 0) {
+      setIntervalValue((intervalInSeconds / 86400).toString());
+      setIntervalUnit("days");
+    } else if (intervalInSeconds % 3600 === 0) {
+      setIntervalValue((intervalInSeconds / 3600).toString());
+      setIntervalUnit("hours");
+    } else if (intervalInSeconds % 60 === 0) {
+      setIntervalValue((intervalInSeconds / 60).toString());
+      setIntervalUnit("minutes");
+    } else {
+      setIntervalValue(intervalInSeconds.toString());
+      setIntervalUnit("seconds");
+    }
+  }, [subscription.interval]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate(subscription.subscriptionId, name, amount, interval);
+
+    setLoading(true);
+
+    let intervalInSeconds = parseInt(intervalValue);
+    switch (intervalUnit) {
+      case "months":
+        intervalInSeconds *= 2592000;
+        break;
+      case "weeks":
+        intervalInSeconds *= 604800;
+        break;
+      case "days":
+        intervalInSeconds *= 86400;
+        break;
+      case "hours":
+        intervalInSeconds *= 3600;
+        break;
+      case "minutes":
+        intervalInSeconds *= 60;
+        break;
+    }
+
+    await onUpdate(subscription.subscriptionId, name, amount, intervalInSeconds.toString());
+    setLoading(false);
+    setOpen(false); // Close the dialog when the update is complete
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Edit className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Update Subscription</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="amount">Amount (ETH)</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.000000000000000001"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="interval">Interval (days)</Label>
-            <Input
-                id="interval"
-                type="number"
-                value={interval}
-                onChange={(e) => setInterval(e.target.value)}
-            />
-          </div>
-          <Button type="submit">Update</Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+            <Edit className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Subscription</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="amount">Amount (ETH)</Label>
+              <Input
+                  id="amount"
+                  type="number"
+                  step="0.000000000000000001"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="intervalValue">Interval Value</Label>
+              <Input
+                  id="intervalValue"
+                  type="number"
+                  value={intervalValue}
+                  onChange={(e) => setIntervalValue(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="intervalUnit">Interval Unit</Label>
+              <select
+                  id="intervalUnit"
+                  value={intervalUnit}
+                  onChange={(e) => setIntervalUnit(e.target.value)}
+                  className="form-select"
+              >
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                  <>
+                    Updating
+                    <Loader className="ml-2 h-5 w-5 text-purple-600 inline animate-spin" />
+                  </>
+              ) : (
+                  "Update"
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
   );
 };

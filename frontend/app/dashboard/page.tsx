@@ -9,7 +9,6 @@ import { ManageSubscriptions } from "./sections/ManageSubscriptions";
 
 import {
   Bell,
-  ChevronDown,
   Clock,
   History,
   Home,
@@ -53,12 +52,11 @@ import UserSettings from "./sections/UserSettings";
 import NetworkSwitcherDropdown from "@/components/switchNetwork";
 
 type Subscription = {
-  subscriptionId: number;
-  provider: string;
-  name: string;
-  amount: number;
-  interval: number;
-  nextPaymentDate: Date;
+  id: number;
+  user: any;
+  serviceProviderName: any;
+  amount: string;
+  nextPaymentDate: string;
 };
 
 export default function DashboardPage() {
@@ -76,42 +74,62 @@ export default function DashboardPage() {
   const { fetchSubscriptionsByUser } = useContracts();
   const router = useRouter();
   const [activePage, setActivePage] = useState("dashboard");
-  const [activeChain, setActiveChain] = useState("Sepolia");
   const [showNotifications, setShowNotifications] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
-  const [activeSubscriptions, setActiveSubscription] = useState<Subscription[]>(
-    []
-  );
+  const [activeSubscriptions, setActiveSubscriptions] = useState<Subscription[]>([]);
 
   // Handle fetching active subscriptions
   const handleGetActiveSubscriptions = useCallback(async () => {
-    const subscriptions = await fetchSubscriptionsByUser();
-    console.log(subscriptions);
-    setActiveSubscription(subscriptions);
+    try {
+      const subscriptions = await fetchSubscriptionsByUser();
+      setActiveSubscriptions(subscriptions);
+    } catch (error) {
+      console.error("Error fetching subscriptions:", error);
+    }
   }, [fetchSubscriptionsByUser]);
 
-  // Check authentication status and fetch balance when initialized
+  // Implement caching and reduce unnecessary checks
+  const [lastAuthCheck, setLastAuthCheck] = useState(0);
+  const [lastBalanceCheck, setLastBalanceCheck] = useState(0);
+
   useEffect(() => {
     const checkAuth = async () => {
-      if (!initializing) {
+      if (!initializing && Date.now() - lastAuthCheck > 20000) {
         const isAuthenticated = await checkAuthStatus();
+        setLastAuthCheck(Date.now());
         if (!isAuthenticated) {
           router.push("/auth?authRequired=true");
         } else {
-          getBalance().then(setBalance); // Fetch and set balance
+          // Fetch user address and balance here
+          if (userAddress) {
+            console.log("User address:", userAddress);
+          } else {
+            console.log("User address is not available");
+          }
+          if (Date.now() - lastBalanceCheck > 20000) {
+            const newBalance = await getBalance();
+            setBalance(newBalance);
+            setLastBalanceCheck(Date.now());
+          }
         }
         setIsCheckingAuth(false);
       }
     };
     checkAuth();
-  }, [checkAuthStatus, getBalance, router, initializing]);
+  }, [checkAuthStatus, getBalance, router, initializing, lastAuthCheck, lastBalanceCheck, userAddress]);
 
-  // Fetch active subscriptions when the user is authenticated
+  // Implement caching for subscriptions
+  const [lastSubscriptionFetch, setLastSubscriptionFetch] = useState(0);
+
   useEffect(() => {
-    if (user) {
-      handleGetActiveSubscriptions();
-    }
-  }, [user, handleGetActiveSubscriptions]);
+    const fetchSubscriptions = async () => {
+      if (user && Date.now() - lastSubscriptionFetch > 30000) { // Fetch every 30 sec
+        await handleGetActiveSubscriptions();
+        setLastSubscriptionFetch(Date.now());
+      }
+    };
+    fetchSubscriptions();
+  }, [user, handleGetActiveSubscriptions, lastSubscriptionFetch]);
 
   // Handle network switch by updating balance
   const handleNetworkSwitch = useCallback(async () => {
@@ -358,7 +376,7 @@ export default function DashboardPage() {
               <div className="mb-8">
                 <h2 className="text-xl font-semibold">Welcome, {user?.name}</h2>
                 <p>
-                  <strong>Your wallet address:</strong> {userAddress}
+                  <strong>Your wallet address:</strong> {userAddress || "Loading..."}
                 </p>
                 <p>
                   <strong>Balance:</strong>{" "}
